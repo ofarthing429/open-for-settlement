@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Open for Settlement</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+    <section id="titlePanel" class="panel">
+      <button id="enterBtn" class="titleClicker" aria-label="Enter mission setup">
+        <span class="titlePrompt">Click To Continue</span>
+      </button>
+    </section>
+
+    <section id="setupPanel" class="panel hidden">
+      <div class="setupOverlay setupCard">
+        <p class="setupKicker">Earth's best idea, on the worst possible planet.</p>
+        <h1>Mission Setup</h1>
+        <p class="setupIntro">
+          Pilot your mini-skyscraper crawler across a black-sand colony world. Food keeps you moving,
+          hazards hit hard, and the wildlife is not interested in sharing.
+        </p>
+        <label for="foodInput">Starting Food (20 - 300)</label>
+        <input id="foodInput" type="number" min="20" max="300" step="10" value="120" />
+        <button id="startBtn">Start Mission</button>
+        <ul class="hazardList">
+          <li>Bad Weather: <strong>-10 HP</strong></li>
+          <li>Sinking Sand: <strong>-20 HP</strong></li>
+          <li>Glowing Green Coral: <strong>-25 HP</strong></li>
+          <li>Nibblorax Bug: <strong>-15 to -150 Food</strong></li>
+          <li>Wreckage Cache: <strong>+25 HP</strong></li>
+          <li>Glowcore Orchard: <strong>+50 Food</strong></li>
+          <li>Plutonium Deposit: <strong>skip 3 turns safely</strong></li>
+          <li>The Worm: <strong>Instant defeat</strong></li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="gamePanel" class="panel hidden">
+      <header class="hud">
+        <div class="leftHud">
+          <div>Turn: <span id="turnValue">0</span></div>
+          <div>Food: <span id="foodValue">0</span></div>
+          <div>Points: <span id="pointsValue">0</span></div>
+          <div>Mission Target: <span id="targetValue">0</span></div>
+        </div>
+        <div class="rightHud">
+          <span class="hpLabel">HP</span>
+          <div class="hpBar">
+            <div id="hpBarFill" class="hpBarFill"></div>
+          </div>
+          <span id="hpValue">100</span>
+        </div>
+      </header>
+
+      <div class="gameLayout">
+        <div class="mainColumn">
+          <div class="mapFrame">
+            <canvas id="gameCanvas" width="960" height="540"></canvas>
+          </div>
+
+          <footer class="controls">
+            <button id="nextTurnBtn">Advance Turn</button>
+            <button id="restartBtn">Restart</button>
+          </footer>
+
+          <section class="logPanel">
+            <h2>Mission Log</h2>
+            <div id="log" class="log"></div>
+          </section>
+        </div>
+
+        <aside class="inventoryPanel">
+          <h2>Inventory</h2>
+          <div class="inventoryItem">
+            <div>Repair Kits: <span id="repairCount">0</span></div>
+            <button id="repairBtn">Use Repair (+30 HP)</button>
+          </div>
+          <div class="inventoryItem">
+            <div>Anti-Nib Spray: <span id="sprayCount">0</span></div>
+            <div class="subState">Status: <span id="sprayStatus">Inactive</span></div>
+            <button id="sprayBtn">Arm Spray</button>
+          </div>
+          <div class="inventoryItem">
+            <div>Sonar Disrupter: <span id="sonarCount">0</span></div>
+            <div class="subState">Status: <span id="sonarStatus">Inactive</span></div>
+            <button id="sonarBtn">Arm Sonar</button>
+          </div>
+          <div class="inventoryItem">
+            <div>Bouncer: <span id="bouncerCount">0</span></div>
+            <button id="bouncerBtn">Use Bouncer (+5 turns safe)</button>
+          </div>
+          <p class="inventoryNote">Wreckage can contain repair kits or spray, never bouncers.</p>
+
+          <h2>Store</h2>
+          <div class="inventoryItem">
+            <div>Repair Kit</div>
+            <div class="subState">Cost: 15 points</div>
+            <button id="buyRepairBtn">Buy Repair Kit</button>
+          </div>
+          <div class="inventoryItem">
+            <div>Anti-Nib Spray</div>
+            <div class="subState">Cost: 5 points</div>
+            <button id="buySprayBtn">Buy Anti-Nib Spray</button>
+          </div>
+          <div class="inventoryItem">
+            <div>Bouncer</div>
+            <div class="subState">Cost: 30 points</div>
+            <button id="buyBouncerBtn">Buy Bouncer</button>
+          </div>
+          <div class="inventoryItem">
+            <div>Max HP +10</div>
+            <div class="subState">Cost: 50 points</div>
+            <button id="buyHpBtn">Buy Max HP</button>
+          </div>
+          <div class="inventoryItem">
+            <div>Sonar Disrupter</div>
+            <div class="subState">Cost: 100 points</div>
+            <button id="buySonarBtn">Buy Sonar Disrupter</button>
+          </div>
+          <div class="inventoryItem">
+            <div>Investor</div>
+            <div class="subState">Cost: 75 points, doubles points per turn</div>
+            <button id="buyInvestorBtn">Buy Investor</button>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <script src="game.js"></script>
+</body>
+</html>

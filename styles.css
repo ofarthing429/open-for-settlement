@@ -1,0 +1,341 @@
+:root {
+  --bg: #0c0f16;
+  --panel: #1c2130;
+  --ink: #e6e3d6;
+  --accent: #d8ab57;
+  --danger: #f06b6b;
+  --safe: #94dc8b;
+  --border: #414b63;
+  --panel-hi: #2a3145;
+  --panel-lo: #111521;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 20% 15%, #29334c 0%, rgba(41, 51, 76, 0) 35%),
+    radial-gradient(circle at 80% 10%, #44352a 0%, rgba(68, 53, 42, 0) 30%),
+    linear-gradient(180deg, #0d1017 0%, #090b11 100%);
+  color: var(--ink);
+  font-family: "Trebuchet MS", Verdana, sans-serif;
+}
+
+.app {
+  width: min(1060px, 95vw);
+}
+
+.panel {
+  background: linear-gradient(180deg, var(--panel-hi) 0%, var(--panel) 55%, var(--panel-lo) 100%);
+  border: 3px solid var(--border);
+  padding: 16px;
+  box-shadow: 0 0 0 3px #09090a, inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+#titlePanel,
+#setupPanel {
+  min-height: 82vh;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  padding: 24px;
+  background:
+    linear-gradient(180deg, rgba(5, 7, 11, 0.12) 0%, rgba(5, 7, 11, 0.4) 100%),
+    url("./home-screen-concept.svg") center center / cover no-repeat;
+  border-color: #3e4350;
+}
+
+.setupOverlay {
+  width: min(420px, 100%);
+  padding: 20px 18px;
+  background: linear-gradient(180deg, rgba(20, 25, 37, 0.92) 0%, rgba(12, 16, 24, 0.95) 100%);
+  border: 2px solid rgba(116, 123, 144, 0.8);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(4px);
+}
+
+.setupCard {
+  margin-left: 0;
+}
+
+.titleClicker {
+  width: 100%;
+  min-height: calc(82vh - 48px);
+  border: 0;
+  background: transparent;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 24px;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.titleClicker:hover:not(:disabled) {
+  background: transparent;
+}
+
+.titlePrompt {
+  padding: 12px 18px;
+  border: 2px solid rgba(220, 200, 145, 0.7);
+  background: rgba(12, 14, 20, 0.72);
+  color: #f0e1b5;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-size: 0.84rem;
+}
+
+.hidden {
+  display: none !important;
+}
+
+#setupPanel h1 {
+  margin: 0 0 12px;
+  color: #f0e1b5;
+  font-size: clamp(2.2rem, 5vw, 3.5rem);
+  line-height: 0.95;
+  text-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+}
+
+.setupKicker {
+  margin: 0 0 8px;
+  color: #9fb4c8;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.76rem;
+}
+
+#setupPanel p {
+  margin-top: 0;
+  line-height: 1.35;
+}
+
+.setupIntro {
+  color: #ddd7c9;
+  max-width: 38ch;
+}
+
+input,
+button {
+  font: inherit;
+}
+
+input {
+  display: block;
+  margin-top: 8px;
+  margin-bottom: 14px;
+  width: 160px;
+  padding: 6px;
+  border: 2px solid var(--border);
+  background: #0b1019;
+  color: var(--ink);
+}
+
+button {
+  padding: 8px 12px;
+  border: 2px solid #8b7343;
+  background: linear-gradient(180deg, #5d4b2e 0%, #43351e 100%);
+  color: #f7e9bc;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+button:hover:not(:disabled) {
+  background: linear-gradient(180deg, #6a5635 0%, #4a3b21 100%);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hazardList {
+  margin-bottom: 0;
+  padding-left: 20px;
+  line-height: 1.4;
+  color: #d8d3c4;
+}
+
+.hud {
+  display: flex;
+  justify-content: space-between;
+  border: 2px solid var(--border);
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  background: linear-gradient(180deg, #192032 0%, #111727 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.leftHud {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.rightHud {
+  color: #ffe2e2;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hpLabel {
+  letter-spacing: 0.04em;
+}
+
+.hpBar {
+  width: 132px;
+  height: 16px;
+  border: 2px solid #5b667e;
+  background: linear-gradient(180deg, #220f12 0%, #12090b 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.hpBarFill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(180deg, #ff9d66 0%, #d44f4f 55%, #8e2434 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transition: width 120ms linear;
+}
+
+.mapFrame {
+  border: 2px solid var(--border);
+  background: #05070b;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.gameLayout {
+  display: grid;
+  grid-template-columns: 1fr 250px;
+  gap: 12px;
+  align-items: start;
+}
+
+.mainColumn {
+  min-width: 0;
+}
+
+.inventoryPanel {
+  border: 2px solid var(--border);
+  background: linear-gradient(180deg, #171d2b 0%, #101521 100%);
+  padding: 10px;
+}
+
+.inventoryPanel h2 {
+  margin: 0 0 10px;
+  color: var(--accent);
+  font-size: 1rem;
+}
+
+.inventoryItem {
+  border: 2px solid #2a2a30;
+  padding: 8px;
+  margin-bottom: 10px;
+  background: linear-gradient(180deg, #151a26 0%, #0d111a 100%);
+}
+
+.inventoryItem button {
+  margin-top: 8px;
+  width: 100%;
+  font-size: 0.9rem;
+  padding: 7px 8px;
+}
+
+.subState {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  color: #b7c8b0;
+}
+
+.inventoryNote {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  color: #bebea8;
+  line-height: 1.35;
+}
+
+canvas {
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  display: block;
+}
+
+.controls {
+  margin: 10px 0;
+  display: flex;
+  gap: 10px;
+}
+
+.logPanel h2 {
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-size: 1rem;
+}
+
+.log {
+  height: 130px;
+  overflow-y: auto;
+  border: 2px solid var(--border);
+  padding: 8px;
+  background: linear-gradient(180deg, #101522 0%, #0b0f16 100%);
+  font-size: 0.95rem;
+}
+
+.logEntry {
+  margin: 0 0 4px;
+}
+
+.logEntry.bad {
+  color: #ff9a9a;
+}
+
+.logEntry.good {
+  color: #b1f3b1;
+}
+
+@media (max-width: 720px) {
+  #setupPanel {
+    min-height: auto;
+    padding: 12px;
+    align-items: flex-end;
+    background-position: 58% center;
+  }
+
+  .setupOverlay {
+    width: 100%;
+    padding: 16px 14px;
+  }
+
+  .gameLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .titleClicker {
+    min-height: calc(82vh - 24px);
+    padding: 12px;
+  }
+
+  .leftHud {
+    gap: 10px;
+    font-size: 0.92rem;
+  }
+
+  .rightHud {
+    font-size: 1rem;
+    gap: 6px;
+  }
+
+  .hpBar {
+    width: 92px;
+  }
+}
