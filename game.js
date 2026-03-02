@@ -43,7 +43,10 @@ ctx.imageSmoothingEnabled = false;
 const POINTS_STORAGE_KEY = 'black-sand-colony-run-points';
 const MAX_HP_STORAGE_KEY = 'black-sand-colony-run-max-hp';
 const INVESTOR_STORAGE_KEY = 'black-sand-colony-run-investor';
-const RECORDS_STORAGE_KEY = 'black-sand-colony-run-records';
+const RECORD_RUNS_STORAGE_KEY = 'black-sand-colony-run-record-runs';
+const RECORD_WINS_STORAGE_KEY = 'black-sand-colony-run-record-wins';
+const RECORD_BEST_POINTS_STORAGE_KEY = 'black-sand-colony-run-record-best-points';
+const RECORD_BEST_TURNS_STORAGE_KEY = 'black-sand-colony-run-record-best-turns';
 
 const state = {
   running: false,
@@ -558,22 +561,26 @@ function storeInvestor() {
 
 function loadStoredRecords() {
   try {
-    const raw = window.localStorage.getItem(RECORDS_STORAGE_KEY);
-    if (!raw) {
-      return {
-        runs: 0,
-        wins: 0,
-        bestPoints: 0,
-        bestTurns: 0,
-      };
+    const legacyRaw = window.localStorage.getItem('black-sand-colony-run-records');
+    if (legacyRaw) {
+      try {
+        const parsed = JSON.parse(legacyRaw);
+        return {
+          runs: Number.isFinite(parsed.runs) ? Math.max(0, Math.floor(parsed.runs)) : 0,
+          wins: Number.isFinite(parsed.wins) ? Math.max(0, Math.floor(parsed.wins)) : 0,
+          bestPoints: Number.isFinite(parsed.bestPoints) ? Math.max(0, Math.floor(parsed.bestPoints)) : 0,
+          bestTurns: Number.isFinite(parsed.bestTurns) ? Math.max(0, Math.floor(parsed.bestTurns)) : 0,
+        };
+      } catch {
+        // Fall through to per-field storage.
+      }
     }
 
-    const parsed = JSON.parse(raw);
     return {
-      runs: Number.isFinite(parsed.runs) ? Math.max(0, Math.floor(parsed.runs)) : 0,
-      wins: Number.isFinite(parsed.wins) ? Math.max(0, Math.floor(parsed.wins)) : 0,
-      bestPoints: Number.isFinite(parsed.bestPoints) ? Math.max(0, Math.floor(parsed.bestPoints)) : 0,
-      bestTurns: Number.isFinite(parsed.bestTurns) ? Math.max(0, Math.floor(parsed.bestTurns)) : 0,
+      runs: readStoredNumber(RECORD_RUNS_STORAGE_KEY),
+      wins: readStoredNumber(RECORD_WINS_STORAGE_KEY),
+      bestPoints: readStoredNumber(RECORD_BEST_POINTS_STORAGE_KEY),
+      bestTurns: readStoredNumber(RECORD_BEST_TURNS_STORAGE_KEY),
     };
   } catch {
     return {
@@ -587,10 +594,22 @@ function loadStoredRecords() {
 
 function storeRecords() {
   try {
-    window.localStorage.setItem(RECORDS_STORAGE_KEY, JSON.stringify(state.records));
+    window.localStorage.setItem(RECORD_RUNS_STORAGE_KEY, String(state.records.runs));
+    window.localStorage.setItem(RECORD_WINS_STORAGE_KEY, String(state.records.wins));
+    window.localStorage.setItem(RECORD_BEST_POINTS_STORAGE_KEY, String(state.records.bestPoints));
+    window.localStorage.setItem(RECORD_BEST_TURNS_STORAGE_KEY, String(state.records.bestTurns));
   } catch {
     // Ignore storage failures and keep records in memory for the session.
   }
+}
+
+function readStoredNumber(key) {
+  const raw = window.localStorage.getItem(key);
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return 0;
+  }
+  return Math.floor(parsed);
 }
 
 function finalizeRun(won) {
