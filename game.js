@@ -1609,21 +1609,57 @@ function drawWindmill() {
 
 function drawNatives() {
   const { x, y } = getCrawlerPosition();
-  const tick = Math.floor(state.eventAnim.tick) % 4;
+  const tick = Math.floor(state.eventAnim.tick) % 3;
+  const pack = [
+    { ox: 54, oy: 4, scale: 1 },
+    { ox: 84, oy: 0, scale: 1.15 },
+    { ox: 118, oy: 8, scale: 0.95 },
+  ];
 
-  for (let i = 0; i < 3; i += 1) {
-    const nx = x + 54 + i * 26;
-    const ny = y - 6 + (i % 2 === 0 ? 0 : 6);
-    ctx.fillStyle = '#5e2f88';
-    ctx.fillRect(nx, ny - 22, 10, 18);
-    ctx.fillRect(nx + 2, ny - 30, 6, 8);
-    ctx.fillRect(nx + 1, ny - 4, 3, 9);
-    ctx.fillRect(nx + 6, ny - 4, 3, 9);
-    ctx.fillStyle = '#2ddc8c';
-    ctx.fillRect(nx + 2, ny - 27, 2, 2);
-    ctx.fillRect(nx + 6, ny - 27, 2, 2);
-    ctx.fillRect(nx + 3, ny - 20, 4, 2);
-    ctx.fillRect(nx + 8, ny - 20 - tick, 3, 8 + tick);
+  for (const native of pack) {
+    const nx = x + native.ox;
+    const ny = y + native.oy;
+    const s = native.scale;
+
+    ctx.fillStyle = '#522b76';
+    ctx.fillRect(nx, ny - 24 * s, 12 * s, 20 * s);
+    ctx.fillRect(nx + 8 * s, ny - 20 * s, 7 * s, 16 * s);
+
+    ctx.fillStyle = '#66358f';
+    ctx.fillRect(nx - 6 * s, ny - 28 * s, 9 * s, 8 * s);
+    ctx.fillRect(nx + 1 * s, ny - 32 * s, 9 * s, 10 * s);
+    ctx.fillRect(nx + 9 * s, ny - 30 * s, 6 * s, 8 * s);
+
+    ctx.fillStyle = '#73419b';
+    ctx.fillRect(nx - 14 * s, ny - 24 * s, 8 * s, 6 * s);
+
+    ctx.fillStyle = '#3e2159';
+    ctx.fillRect(nx + 12 * s, ny - 18 * s, 5 * s, 11 * s);
+    ctx.fillRect(nx + 16 * s, ny - 12 * s, 5 * s, 10 * s);
+    ctx.fillRect(nx + 20 * s, ny - 6 * s, 4 * s, 9 * s);
+    ctx.fillRect(nx + 23 * s, ny + 0 * s, 3 * s, 8 * s);
+
+    ctx.fillStyle = '#28173b';
+    ctx.fillRect(nx + 3 * s, ny - 4 * s, 3 * s, 11 * s);
+    ctx.fillRect(nx + 10 * s, ny - 4 * s, 3 * s, 11 * s);
+    ctx.fillRect(nx + 11 * s, ny - 18 * s, 6 * s, 14 * s);
+    ctx.fillRect(nx + 17 * s, ny - 12 * s, 5 * s, 10 * s);
+
+    ctx.fillStyle = '#0f0d11';
+    ctx.fillRect(nx - 1 * s, ny + 6 * s, 7 * s, 3 * s);
+    ctx.fillRect(nx + 9 * s, ny + 6 * s, 7 * s, 3 * s);
+
+    ctx.fillStyle = '#67ff9f';
+    ctx.fillRect(nx - 11 * s, ny - 21 * s, 7 * s, 3 * s);
+    ctx.fillRect(nx - 1 * s, ny - 26 * s, 2 * s, 2 * s);
+    ctx.fillRect(nx + 3 * s, ny - 26 * s, 2 * s, 2 * s);
+    ctx.fillRect(nx + 0 * s, ny - 20 * s, 5 * s, 2 * s);
+    ctx.fillRect(nx + 2 * s, ny - 13 * s, 4 * s, 6 * s);
+    ctx.fillRect(nx - 4 * s, ny - 10 * s, 4 * s, 6 * s);
+    ctx.fillRect(nx - 7 * s, ny - 1 * s, 4 * s, 5 * s);
+
+    ctx.fillStyle = '#80ffb3';
+    ctx.fillRect(nx + 20 * s, ny - 4 * s + tick, 2 * s, 2 * s);
   }
 
   ctx.fillStyle = '#a6ff7f';
