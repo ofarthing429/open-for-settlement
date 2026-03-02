@@ -59,6 +59,7 @@ const state = {
   eventAnim: null,
   deathMode: '',
   lastDamageSource: '',
+  runRecorded: false,
   inventory: {
     repairKits: 3,
     antiNibSpray: 2,
@@ -92,9 +93,13 @@ startBtn.addEventListener('click', startGame);
 enterBtn.addEventListener('click', showSetup);
 nextTurnBtn.addEventListener('click', advanceTurn);
 restartBtn.addEventListener('click', () => {
+  if (state.turn > 0 && !state.runRecorded) {
+    finalizeRun(false);
+  }
   titlePanel.classList.remove('hidden');
   setupPanel.classList.add('hidden');
   gamePanel.classList.add('hidden');
+  syncRecordsUi();
 });
 repairBtn.addEventListener('click', useRepairKit);
 sprayBtn.addEventListener('click', useSpray);
@@ -126,6 +131,7 @@ function startGame() {
   state.eventAnim = null;
   state.deathMode = '';
   state.lastDamageSource = '';
+  state.runRecorded = false;
   state.inventory.repairKits = 3;
   state.inventory.antiNibSpray = 2;
   state.inventory.sonarDisrupter = 0;
@@ -468,7 +474,7 @@ function endGame(message, cause = '') {
   if (cause) {
     state.deathMode = cause;
   }
-  updateRecords(cause === 'win');
+  finalizeRun(cause === 'win');
   nextTurnBtn.disabled = true;
   setItemButtonsDisabled(true);
   addLog(message, message.includes('success') ? 'good' : 'bad');
@@ -587,7 +593,12 @@ function storeRecords() {
   }
 }
 
-function updateRecords(won) {
+function finalizeRun(won) {
+  if (state.runRecorded) {
+    return;
+  }
+
+  state.runRecorded = true;
   state.records.runs += 1;
   if (won) {
     state.records.wins += 1;
