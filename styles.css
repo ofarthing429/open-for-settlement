@@ -283,6 +283,79 @@ button:disabled {
   line-height: 1.35;
 }
 
+.traderPanel {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 9, 14, 0.76);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 20;
+}
+
+.traderCard {
+  width: min(720px, 100%);
+  border: 3px solid #4e5a70;
+  background: linear-gradient(180deg, #1a2030 0%, #121722 100%);
+  padding: 18px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+}
+
+.traderCard h2 {
+  margin: 0 0 8px;
+  color: #b7ff8f;
+}
+
+.traderIntro {
+  margin: 0 0 14px;
+  color: #d5d4c7;
+  line-height: 1.35;
+}
+
+.traderColumns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.traderSectionTitle {
+  margin: 0 0 10px;
+  color: #efd69f;
+  font-size: 1rem;
+}
+
+.traderOffers {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.traderOffer {
+  border: 2px solid #374157;
+  background: linear-gradient(180deg, #171d29 0%, #0f131c 100%);
+  padding: 10px;
+}
+
+.traderOffer h3 {
+  margin: 0 0 8px;
+  color: #efd69f;
+  font-size: 1rem;
+}
+
+.traderOffer p {
+  margin: 0 0 8px;
+  color: #cfd3c4;
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+.traderOffer button {
+  width: 100%;
+  margin-top: 6px;
+}
+
 canvas {
   width: 100%;
   height: auto;
@@ -357,5 +430,13 @@ canvas {
 
   .hpBar {
     width: 92px;
+  }
+
+  .traderOffers {
+    grid-template-columns: 1fr;
+  }
+
+  .traderColumns {
+    grid-template-columns: 1fr;
   }
 }

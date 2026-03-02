@@ -101,6 +101,16 @@
             <div>Bouncer: <span id="bouncerCount">0</span></div>
             <button id="bouncerBtn">Use Bouncer (+5 turns safe)</button>
           </div>
+          <div class="inventoryItem">
+            <div>Special Pickaxes: <span id="pickaxeCount">0</span></div>
+            <div class="subState">Status: <span id="pickaxeStatus">Inactive</span></div>
+            <button id="pickaxeBtn">Arm Pickaxe</button>
+          </div>
+          <div class="inventoryItem">
+            <div>Windmills: <span id="windmillCount">0</span></div>
+            <div class="subState">Status: <span id="windmillStatus">Inactive</span></div>
+            <button id="windmillBtn">Arm Windmill</button>
+          </div>
           <p class="inventoryNote">Wreckage can contain repair kits or spray, never bouncers.</p>
 
           <h2>Store</h2>
@@ -136,6 +146,26 @@
           </div>
         </aside>
       </div>
+
+      <section id="nativeTraderPanel" class="traderPanel hidden">
+        <div class="traderCard">
+          <h2>Native Traders</h2>
+          <p class="traderIntro">
+            Hunched purple lizards with glowing green glands circle the crawler and make their offers.
+          </p>
+          <div class="traderColumns">
+            <section>
+              <h3 class="traderSectionTitle">They Sell</h3>
+              <div id="traderOffers" class="traderOffers"></div>
+            </section>
+            <section>
+              <h3 class="traderSectionTitle">They Buy</h3>
+              <div id="traderSellOffers" class="traderOffers"></div>
+            </section>
+          </div>
+          <button id="declineTraderBtn">Decline Trade</button>
+        </div>
+      </section>
     </section>
   </main>
 

@@ -11,12 +11,18 @@ const repairBtn = document.getElementById('repairBtn');
 const sprayBtn = document.getElementById('sprayBtn');
 const sonarBtn = document.getElementById('sonarBtn');
 const bouncerBtn = document.getElementById('bouncerBtn');
+const pickaxeBtn = document.getElementById('pickaxeBtn');
+const windmillBtn = document.getElementById('windmillBtn');
 const buyRepairBtn = document.getElementById('buyRepairBtn');
 const buySprayBtn = document.getElementById('buySprayBtn');
 const buyBouncerBtn = document.getElementById('buyBouncerBtn');
 const buyHpBtn = document.getElementById('buyHpBtn');
 const buySonarBtn = document.getElementById('buySonarBtn');
 const buyInvestorBtn = document.getElementById('buyInvestorBtn');
+const nativeTraderPanel = document.getElementById('nativeTraderPanel');
+const traderOffers = document.getElementById('traderOffers');
+const traderSellOffers = document.getElementById('traderSellOffers');
+const declineTraderBtn = document.getElementById('declineTraderBtn');
 
 const turnValue = document.getElementById('turnValue');
 const foodValue = document.getElementById('foodValue');
@@ -32,8 +38,12 @@ const repairCount = document.getElementById('repairCount');
 const sprayCount = document.getElementById('sprayCount');
 const sonarCount = document.getElementById('sonarCount');
 const bouncerCount = document.getElementById('bouncerCount');
+const pickaxeCount = document.getElementById('pickaxeCount');
+const windmillCount = document.getElementById('windmillCount');
 const sprayStatus = document.getElementById('sprayStatus');
 const sonarStatus = document.getElementById('sonarStatus');
+const pickaxeStatus = document.getElementById('pickaxeStatus');
+const windmillStatus = document.getElementById('windmillStatus');
 const log = document.getElementById('log');
 
 const canvas = document.getElementById('gameCanvas');
@@ -68,10 +78,25 @@ const state = {
     antiNibSpray: 2,
     sonarDisrupter: 0,
     bouncer: 1,
+    specialPickaxes: 0,
+    windmills: 0,
+  },
+  fakeInventory: {
+    repairKits: 0,
+    antiNibSpray: 0,
+    sonarDisrupter: 0,
+    bouncer: 0,
+    specialPickaxes: 0,
+    windmills: 0,
   },
   sprayArmed: false,
   sonarArmed: false,
+  pickaxeArmed: false,
+  windmillArmed: false,
   investorOwned: false,
+  traderOffers: [],
+  traderSellOffers: [],
+  traderOpen: false,
   records: {
     runs: 0,
     wins: 0,
@@ -89,6 +114,7 @@ const eventTable = [
   { key: 'wreckage', weight: 7, text: 'You found wreckage supplies. +25 HP' },
   { key: 'orchard', weight: 6, text: 'Glowcore Orchard discovered. +50 food' },
   { key: 'plutonium', weight: 3, text: 'Plutonium deposit found. Reactor jump engaged.' },
+  { key: 'natives', weight: 4, text: 'Native traders flag you down from the dunes.' },
   { key: 'worm', weight: 1, kill: true, text: 'The worm erupts from beneath you. Instant kill.' },
 ];
 
@@ -102,18 +128,23 @@ restartBtn.addEventListener('click', () => {
   titlePanel.classList.remove('hidden');
   setupPanel.classList.add('hidden');
   gamePanel.classList.add('hidden');
+  nativeTraderPanel.classList.add('hidden');
+  state.traderOpen = false;
   syncRecordsUi();
 });
 repairBtn.addEventListener('click', useRepairKit);
 sprayBtn.addEventListener('click', useSpray);
 sonarBtn.addEventListener('click', useSonar);
 bouncerBtn.addEventListener('click', useBouncer);
+pickaxeBtn.addEventListener('click', usePickaxe);
+windmillBtn.addEventListener('click', useWindmill);
 buyRepairBtn.addEventListener('click', () => buyItem('repair'));
 buySprayBtn.addEventListener('click', () => buyItem('spray'));
 buyBouncerBtn.addEventListener('click', () => buyItem('bouncer'));
 buyHpBtn.addEventListener('click', () => buyItem('maxHp'));
 buySonarBtn.addEventListener('click', () => buyItem('sonar'));
 buyInvestorBtn.addEventListener('click', () => buyItem('investor'));
+declineTraderBtn.addEventListener('click', closeNativeTrader);
 
 function startGame() {
   const chosenFood = Number(foodInput.value);
@@ -139,12 +170,26 @@ function startGame() {
   state.inventory.antiNibSpray = 2;
   state.inventory.sonarDisrupter = 0;
   state.inventory.bouncer = 1;
+  state.inventory.specialPickaxes = 0;
+  state.inventory.windmills = 0;
+  state.fakeInventory.repairKits = 0;
+  state.fakeInventory.antiNibSpray = 0;
+  state.fakeInventory.sonarDisrupter = 0;
+  state.fakeInventory.bouncer = 0;
+  state.fakeInventory.specialPickaxes = 0;
+  state.fakeInventory.windmills = 0;
   state.sprayArmed = false;
   state.sonarArmed = false;
+  state.pickaxeArmed = false;
+  state.windmillArmed = false;
+  state.traderOffers = [];
+  state.traderSellOffers = [];
+  state.traderOpen = false;
 
   titlePanel.classList.add('hidden');
   setupPanel.classList.add('hidden');
   gamePanel.classList.remove('hidden');
+  nativeTraderPanel.classList.add('hidden');
   nextTurnBtn.disabled = false;
 
   log.innerHTML = '';
@@ -164,7 +209,7 @@ function showSetup() {
 }
 
 function advanceTurn() {
-  if (!state.running || state.gameOver) {
+  if (!state.running || state.gameOver || state.traderOpen) {
     return;
   }
 
@@ -172,7 +217,7 @@ function advanceTurn() {
 }
 
 function processTurn({ skipHazards, skipLabel = '' }) {
-  if (!state.running || state.gameOver) {
+  if (!state.running || state.gameOver || state.traderOpen) {
     return;
   }
 
@@ -187,6 +232,7 @@ function processTurn({ skipHazards, skipLabel = '' }) {
 
   let sprayWasConsumed = false;
   let autoSkipTurns = 0;
+  let autoSkipLabel = 'Plutonium jump: hazards skipped this turn.';
 
   if (skipHazards) {
     addLog(skipLabel || 'Safe jump: hazards skipped this turn.', 'good');
@@ -196,26 +242,27 @@ function processTurn({ skipHazards, skipLabel = '' }) {
     const result = applyEvent(event);
     sprayWasConsumed = Boolean(result && result.sprayConsumed);
     autoSkipTurns = result && result.autoSkipTurns ? result.autoSkipTurns : 0;
+    autoSkipLabel = result && result.autoSkipLabel ? result.autoSkipLabel : autoSkipLabel;
   }
 
   resolveRoundState(false);
 
-  if (!state.gameOver) {
+  if (!state.gameOver && !state.traderOpen) {
     state.points += state.investorOwned ? 2 : 1;
     storePoints();
   }
 
-  resolveRoundState(true);
+  resolveRoundState(true, { deferWin: state.traderOpen });
   syncHud();
   syncInventoryUi();
   draw();
 
-  if (!state.gameOver && autoSkipTurns > 0) {
+  if (!state.gameOver && !state.traderOpen && autoSkipTurns > 0) {
     for (let i = 0; i < autoSkipTurns; i += 1) {
       if (state.gameOver) {
         break;
       }
-      processTurn({ skipHazards: true, skipLabel: 'Plutonium jump: hazards skipped this turn.' });
+      processTurn({ skipHazards: true, skipLabel: autoSkipLabel });
     }
   }
 }
@@ -224,7 +271,7 @@ function applyEvent(event) {
   if (!event || event.key === 'none') {
     addLog('No hazard this turn. Black dunes stay still.', 'good');
     triggerEventAnimation('none', 32);
-    return { sprayConsumed: false, autoSkipTurns: 0 };
+    return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
   }
 
   const isGoodEvent = event.key === 'wreckage' || event.key === 'orchard';
@@ -235,14 +282,14 @@ function applyEvent(event) {
       state.sonarArmed = false;
       addLog('Sonar disrupter scattered the worm before it surfaced.', 'good');
       triggerEventAnimation('sonar', 64);
-      return { sprayConsumed: false, autoSkipTurns: 0 };
+      return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
     }
 
     state.hp = 0;
     state.deathMode = 'worm';
     triggerEventAnimation('worm', 72);
     endGame('The worm devoured your crawler.', 'worm');
-    return { sprayConsumed: false, autoSkipTurns: 0 };
+    return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
   }
 
   if (event.key === 'nibblorax') {
@@ -250,39 +297,66 @@ function applyEvent(event) {
       state.sprayArmed = false;
       addLog('Spray blast repelled the Nibblorax.', 'good');
       triggerEventAnimation('spray', 60);
-      return { sprayConsumed: true, autoSkipTurns: 0 };
+      return { sprayConsumed: true, autoSkipTurns: 0, autoSkipLabel: '' };
     }
 
     const eaten = randInt(15, 150);
     state.food = Math.max(0, state.food - eaten);
     addLog(`Nibblorax eats ${eaten} food.`, 'bad');
     triggerEventAnimation('nibblorax', 68, { eaten });
-    return { sprayConsumed: false, autoSkipTurns: 0 };
+    return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
+  }
+
+  if (event.key === 'natives') {
+    openNativeTrader();
+    triggerEventAnimation('natives', 88);
+    return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
   }
 
   if (event.key === 'wreckage') {
     state.hp = Math.min(state.maxHp, state.hp + 25);
     applyWreckageLoot();
     triggerEventAnimation('wreckage', 56);
-    return { sprayConsumed: false, autoSkipTurns: 0 };
+    return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
   }
 
   if (event.key === 'orchard') {
     state.food += 50;
     triggerEventAnimation('orchard', 56);
-    return { sprayConsumed: false, autoSkipTurns: 0 };
+    return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
   }
 
   if (event.key === 'plutonium') {
     addLog('Plutonium burst launches you 3 turns forward with no hazards.', 'good');
     triggerEventAnimation('plutonium', 60);
-    return { sprayConsumed: false, autoSkipTurns: 3 };
+    return { sprayConsumed: false, autoSkipTurns: 3, autoSkipLabel: 'Plutonium jump: hazards skipped this turn.' };
+  }
+
+  if (event.key === 'sink' && Math.random() < 0.08) {
+    addLog('Native riders skim over the sinking sand and carry you clear.', 'good');
+    triggerEventAnimation('nativeRide', 72);
+    return { sprayConsumed: false, autoSkipTurns: 1, autoSkipLabel: 'Native riders carry you over the sink. No food spent.' };
+  }
+
+  if (event.key === 'weather' && state.windmillArmed) {
+    state.windmillArmed = false;
+    addLog('Windmill catches the storm and spins you past it. Free skip turn.', 'good');
+    triggerEventAnimation('windmill', 72);
+    return { sprayConsumed: false, autoSkipTurns: 1, autoSkipLabel: 'Windmill glide: the storm gives you a free turn.' };
+  }
+
+  if (event.key === 'coral' && state.pickaxeArmed) {
+    state.pickaxeArmed = false;
+    state.hp = Math.min(state.maxHp, state.hp + 20);
+    addLog('Special pickaxe turns the glowcore coral into +20 HP.', 'good');
+    triggerEventAnimation('pickaxe', 72);
+    return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
   }
 
   state.lastDamageSource = event.key;
   state.hp = Math.max(0, state.hp - event.dmg);
   triggerEventAnimation(event.key, 56);
-  return { sprayConsumed: false, autoSkipTurns: 0 };
+  return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
 }
 
 function applyWreckageLoot() {
@@ -304,7 +378,7 @@ function applyWreckageLoot() {
 }
 
 function useRepairKit() {
-  if (!state.running || state.gameOver) {
+  if (!state.running || state.gameOver || state.traderOpen) {
     return;
   }
 
@@ -318,7 +392,12 @@ function useRepairKit() {
     return;
   }
 
-  state.inventory.repairKits -= 1;
+  if (consumePossiblyFakeItem('repairKits', 'The repair kit is empty. Scam packaging.')) {
+    syncInventoryUi();
+    draw();
+    return;
+  }
+
   state.hp = Math.min(state.maxHp, state.hp + 30);
   addLog('Repair kit used. +30 HP.', 'good');
   triggerEventAnimation('repair', 52);
@@ -328,7 +407,7 @@ function useRepairKit() {
 }
 
 function useSpray() {
-  if (!state.running || state.gameOver) {
+  if (!state.running || state.gameOver || state.traderOpen) {
     return;
   }
 
@@ -342,7 +421,12 @@ function useSpray() {
     return;
   }
 
-  state.inventory.antiNibSpray -= 1;
+  if (consumePossiblyFakeItem('antiNibSpray', 'The spray can hisses air and does nothing. Scam goods.')) {
+    syncInventoryUi();
+    draw();
+    return;
+  }
+
   state.sprayArmed = true;
   addLog('Anti-Nib spray armed for this turn.', 'good');
   triggerEventAnimation('spray', 52);
@@ -351,7 +435,7 @@ function useSpray() {
 }
 
 function useSonar() {
-  if (!state.running || state.gameOver) {
+  if (!state.running || state.gameOver || state.traderOpen) {
     return;
   }
 
@@ -365,7 +449,12 @@ function useSonar() {
     return;
   }
 
-  state.inventory.sonarDisrupter -= 1;
+  if (consumePossiblyFakeItem('sonarDisrupter', 'The sonar disrupter is hollow. Scam device.')) {
+    syncInventoryUi();
+    draw();
+    return;
+  }
+
   state.sonarArmed = true;
   addLog('Sonar disrupter armed until a worm appears.', 'good');
   triggerEventAnimation('sonar', 52);
@@ -374,7 +463,7 @@ function useSonar() {
 }
 
 function useBouncer() {
-  if (!state.running || state.gameOver) {
+  if (!state.running || state.gameOver || state.traderOpen) {
     return;
   }
 
@@ -383,7 +472,11 @@ function useBouncer() {
     return;
   }
 
-  state.inventory.bouncer -= 1;
+  if (consumePossiblyFakeItem('bouncer', 'The bouncer charge fizzles out. Scam field.')) {
+    syncInventoryUi();
+    draw();
+    return;
+  }
   addLog('Bouncer engaged: jumping 5 turns with hazard immunity.', 'good');
 
   for (let i = 0; i < 5; i += 1) {
@@ -396,7 +489,276 @@ function useBouncer() {
   syncInventoryUi();
 }
 
+function usePickaxe() {
+  if (!state.running || state.gameOver || state.traderOpen) {
+    return;
+  }
+
+  if (state.inventory.specialPickaxes <= 0) {
+    addLog('No special pickaxes left.', 'bad');
+    return;
+  }
+
+  if (state.pickaxeArmed) {
+    addLog('Special pickaxe is already armed.', 'bad');
+    return;
+  }
+
+  if (consumePossiblyFakeItem('specialPickaxes', 'The special pickaxe splinters. Scam metal.')) {
+    syncInventoryUi();
+    draw();
+    return;
+  }
+
+  state.pickaxeArmed = true;
+  addLog('Special pickaxe armed until the coral finds you.', 'good');
+  triggerEventAnimation('pickaxe', 48);
+  syncInventoryUi();
+  draw();
+}
+
+function useWindmill() {
+  if (!state.running || state.gameOver || state.traderOpen) {
+    return;
+  }
+
+  if (state.inventory.windmills <= 0) {
+    addLog('No windmills left.', 'bad');
+    return;
+  }
+
+  if (state.windmillArmed) {
+    addLog('Windmill is already armed.', 'bad');
+    return;
+  }
+
+  if (consumePossiblyFakeItem('windmills', 'The windmill unfolds into painted scrap. Scam trade.')) {
+    syncInventoryUi();
+    draw();
+    return;
+  }
+
+  state.windmillArmed = true;
+  addLog('Windmill armed until bad weather shows up.', 'good');
+  triggerEventAnimation('windmill', 48);
+  syncInventoryUi();
+  draw();
+}
+
+function consumePossiblyFakeItem(key, scamMessage) {
+  if (state.inventory[key] <= 0) {
+    return true;
+  }
+
+  state.inventory[key] -= 1;
+  if (state.fakeInventory[key] > 0) {
+    state.fakeInventory[key] -= 1;
+    addLog(scamMessage, 'bad');
+    return true;
+  }
+
+  return false;
+}
+
+function openNativeTrader() {
+  state.traderOffers = buildNativeOffers();
+  state.traderSellOffers = buildNativeSellOffers();
+  state.traderOpen = true;
+  nativeTraderPanel.classList.remove('hidden');
+  renderNativeOffers();
+  nextTurnBtn.disabled = true;
+  syncInventoryUi();
+  addLog('Native traders hiss out prices in broken colony slang.', 'good');
+}
+
+function closeNativeTrader() {
+  if (!state.traderOpen) {
+    return;
+  }
+
+  state.traderOffers = [];
+  state.traderSellOffers = [];
+  state.traderOpen = false;
+  nativeTraderPanel.classList.add('hidden');
+
+  if (!state.gameOver) {
+    state.points += state.investorOwned ? 2 : 1;
+    storePoints();
+    resolveRoundState(true);
+    nextTurnBtn.disabled = false;
+    syncHud();
+    syncInventoryUi();
+    draw();
+  }
+}
+
+function renderNativeOffers() {
+  traderOffers.innerHTML = '';
+  traderSellOffers.innerHTML = '';
+
+  for (const offer of state.traderOffers) {
+    const card = document.createElement('article');
+    card.className = 'traderOffer';
+
+    const title = document.createElement('h3');
+    title.textContent = offer.label;
+    card.appendChild(title);
+
+    const desc = document.createElement('p');
+    desc.textContent = `${offer.description} Price: ${offer.price} points.`;
+    card.appendChild(desc);
+
+    const button = document.createElement('button');
+    button.textContent = `Buy for ${offer.price}`;
+    button.disabled = state.points < offer.price || state.gameOver;
+    button.addEventListener('click', () => buyNativeOffer(offer.id));
+    card.appendChild(button);
+
+    traderOffers.appendChild(card);
+  }
+
+  if (state.traderOffers.length === 0) {
+    const emptyBuy = document.createElement('article');
+    emptyBuy.className = 'traderOffer';
+    emptyBuy.innerHTML = '<p>No native gear left on this stop.</p>';
+    traderOffers.appendChild(emptyBuy);
+  }
+
+  for (const offer of state.traderSellOffers) {
+    const card = document.createElement('article');
+    card.className = 'traderOffer';
+
+    const title = document.createElement('h3');
+    title.textContent = offer.label;
+    card.appendChild(title);
+
+    const desc = document.createElement('p');
+    desc.textContent = `They will take 1 for ${offer.price} points. You have ${state.inventory[offer.inventoryKey]}.`;
+    card.appendChild(desc);
+
+    const button = document.createElement('button');
+    button.textContent = `Sell for ${offer.price}`;
+    button.disabled = state.inventory[offer.inventoryKey] <= 0 || state.gameOver;
+    button.addEventListener('click', () => sellNativeOffer(offer.id));
+    card.appendChild(button);
+
+    traderSellOffers.appendChild(card);
+  }
+
+  if (state.traderSellOffers.length === 0) {
+    const emptySell = document.createElement('article');
+    emptySell.className = 'traderOffer';
+    emptySell.innerHTML = '<p>You have nothing these traders want right now.</p>';
+    traderSellOffers.appendChild(emptySell);
+  }
+}
+
+function buyNativeOffer(offerId) {
+  const offer = state.traderOffers.find((item) => item.id === offerId);
+  if (!offer || state.points < offer.price || state.gameOver) {
+    return;
+  }
+
+  state.points -= offer.price;
+  storePoints();
+
+  if (offer.scam) {
+    state.inventory[offer.inventoryKey] += 1;
+    state.fakeInventory[offer.inventoryKey] += 1;
+    addLog(`The traders sell you a fake ${offer.label.toLowerCase()}.`, 'bad');
+  } else {
+    state.inventory[offer.inventoryKey] += 1;
+    addLog(`Bought ${offer.label} from the natives for ${offer.price} points.`, 'good');
+  }
+
+  triggerEventAnimation('natives', 56, { traded: true });
+  state.traderOffers = state.traderOffers.filter((item) => item.id !== offerId);
+  if (state.traderOffers.length === 0) {
+    closeNativeTrader();
+    return;
+  }
+
+  renderNativeOffers();
+  syncHud();
+  syncInventoryUi();
+}
+
+function sellNativeOffer(offerId) {
+  const offer = state.traderSellOffers.find((item) => item.id === offerId);
+  if (!offer || state.gameOver || state.inventory[offer.inventoryKey] <= 0) {
+    return;
+  }
+
+  state.inventory[offer.inventoryKey] -= 1;
+  if (state.fakeInventory[offer.inventoryKey] > 0) {
+    state.fakeInventory[offer.inventoryKey] -= 1;
+  }
+  state.points += offer.price;
+  storePoints();
+  addLog(`Sold 1 ${offer.label} to the natives for ${offer.price} points.`, 'good');
+
+  if (state.inventory[offer.inventoryKey] <= 0) {
+    state.traderSellOffers = state.traderSellOffers.filter((item) => item.id !== offerId);
+  }
+
+  triggerEventAnimation('natives', 44, { traded: true });
+  renderNativeOffers();
+  syncHud();
+  syncInventoryUi();
+}
+
+function buildNativeOffers() {
+  const catalog = [
+    { kind: 'repair', inventoryKey: 'repairKits', label: 'Repair Kit', description: 'Patch the hull for +30 HP.', min: 10, max: 26, scamChance: 0.08 },
+    { kind: 'spray', inventoryKey: 'antiNibSpray', label: 'Anti-Nib Spray', description: 'Arms until a Nibblorax hits.', min: 3, max: 11, scamChance: 0.08 },
+    { kind: 'bouncer', inventoryKey: 'bouncer', label: 'Bouncer', description: 'Launches a 5-turn safe jump.', min: 22, max: 42, scamChance: 0.1 },
+    { kind: 'sonar', inventoryKey: 'sonarDisrupter', label: 'Sonar Disrupter', description: 'Arms until the worm comes.', min: 80, max: 125, scamChance: 0.1 },
+    { kind: 'pickaxe', inventoryKey: 'specialPickaxes', label: 'Special Pickaxe', description: 'Turns coral damage into +20 HP when armed.', min: 18, max: 34, scamChance: 0.09 },
+    { kind: 'windmill', inventoryKey: 'windmills', label: 'Windmill', description: 'Arms until weather, then skips a free turn.', min: 14, max: 28, scamChance: 0.09 },
+  ];
+
+  const pool = [...catalog];
+  const offers = [];
+  const count = randInt(3, 4);
+
+  while (offers.length < count && pool.length > 0) {
+    const index = randInt(0, pool.length - 1);
+    const picked = pool.splice(index, 1)[0];
+    offers.push({
+      ...picked,
+      id: `${picked.kind}-${Date.now()}-${offers.length}-${Math.random().toString(16).slice(2, 6)}`,
+      price: randInt(picked.min, picked.max),
+      scam: Math.random() < picked.scamChance,
+    });
+  }
+
+  return offers;
+}
+
+function buildNativeSellOffers() {
+  const catalog = [
+    { inventoryKey: 'repairKits', label: 'Repair Kit', min: 6, max: 14 },
+    { inventoryKey: 'antiNibSpray', label: 'Anti-Nib Spray', min: 2, max: 7 },
+    { inventoryKey: 'bouncer', label: 'Bouncer', min: 16, max: 26 },
+    { inventoryKey: 'sonarDisrupter', label: 'Sonar Disrupter', min: 55, max: 90 },
+    { inventoryKey: 'specialPickaxes', label: 'Special Pickaxe', min: 10, max: 22 },
+    { inventoryKey: 'windmills', label: 'Windmill', min: 8, max: 18 },
+  ];
+
+  return catalog
+    .filter((item) => state.inventory[item.inventoryKey] > 0)
+    .map((item, index) => ({
+      ...item,
+      id: `sell-${item.inventoryKey}-${Date.now()}-${index}`,
+      price: randInt(item.min, item.max),
+    }));
+}
+
 function buyItem(kind) {
+  if (state.traderOpen) {
+    return;
+  }
+
   const prices = {
     repair: 15,
     spray: 5,
@@ -445,7 +807,9 @@ function buyItem(kind) {
   syncInventoryUi();
 }
 
-function resolveRoundState(checkWin) {
+function resolveRoundState(checkWin, options = {}) {
+  const { deferWin = false } = options;
+
   if (!state.gameOver && state.food <= 0) {
     state.deathMode = 'starve';
     endGame('Out of food. The crawler rolls to a stop.', 'starve');
@@ -464,7 +828,7 @@ function resolveRoundState(checkWin) {
     }
   }
 
-  if (checkWin && !state.gameOver && state.turn >= state.turnsToWin) {
+  if (checkWin && !state.gameOver && !deferWin && state.turn >= state.turnsToWin) {
     addLog('Extraction signal locked. You survived the crossing.', 'good');
     triggerEventAnimation('confetti', 140);
     endGame('Mission success. You won.', 'win');
@@ -474,6 +838,8 @@ function resolveRoundState(checkWin) {
 function endGame(message, cause = '') {
   state.gameOver = true;
   state.running = false;
+  state.traderOpen = false;
+  nativeTraderPanel.classList.add('hidden');
   if (cause) {
     state.deathMode = cause;
   }
@@ -640,20 +1006,26 @@ function syncInventoryUi() {
   sprayCount.textContent = String(state.inventory.antiNibSpray);
   sonarCount.textContent = String(state.inventory.sonarDisrupter);
   bouncerCount.textContent = String(state.inventory.bouncer);
+  pickaxeCount.textContent = String(state.inventory.specialPickaxes);
+  windmillCount.textContent = String(state.inventory.windmills);
   sprayStatus.textContent = state.sprayArmed ? 'Armed' : 'Inactive';
   sonarStatus.textContent = state.sonarArmed ? 'Armed' : 'Inactive';
+  pickaxeStatus.textContent = state.pickaxeArmed ? 'Armed' : 'Inactive';
+  windmillStatus.textContent = state.windmillArmed ? 'Armed' : 'Inactive';
 
-  const inactive = !state.running || state.gameOver;
+  const inactive = !state.running || state.gameOver || state.traderOpen;
   repairBtn.disabled = inactive || state.inventory.repairKits <= 0 || state.hp >= state.maxHp;
   sprayBtn.disabled = inactive || state.inventory.antiNibSpray <= 0 || state.sprayArmed;
   sonarBtn.disabled = inactive || state.inventory.sonarDisrupter <= 0 || state.sonarArmed;
   bouncerBtn.disabled = inactive || state.inventory.bouncer <= 0;
-  buyRepairBtn.disabled = state.points < 15;
-  buySprayBtn.disabled = state.points < 5;
-  buyBouncerBtn.disabled = state.points < 30;
-  buyHpBtn.disabled = state.points < 50;
-  buySonarBtn.disabled = state.points < 100;
-  buyInvestorBtn.disabled = state.points < 75 || state.investorOwned;
+  pickaxeBtn.disabled = inactive || state.inventory.specialPickaxes <= 0 || state.pickaxeArmed;
+  windmillBtn.disabled = inactive || state.inventory.windmills <= 0 || state.windmillArmed;
+  buyRepairBtn.disabled = state.traderOpen || state.points < 15;
+  buySprayBtn.disabled = state.traderOpen || state.points < 5;
+  buyBouncerBtn.disabled = state.traderOpen || state.points < 30;
+  buyHpBtn.disabled = state.traderOpen || state.points < 50;
+  buySonarBtn.disabled = state.traderOpen || state.points < 100;
+  buyInvestorBtn.disabled = state.traderOpen || state.points < 75 || state.investorOwned;
 }
 
 function setItemButtonsDisabled(disabled) {
@@ -661,6 +1033,8 @@ function setItemButtonsDisabled(disabled) {
   sprayBtn.disabled = disabled;
   sonarBtn.disabled = disabled;
   bouncerBtn.disabled = disabled;
+  pickaxeBtn.disabled = disabled;
+  windmillBtn.disabled = disabled;
   buyRepairBtn.disabled = disabled;
   buySprayBtn.disabled = disabled;
   buyBouncerBtn.disabled = disabled;
@@ -941,8 +1315,28 @@ function drawEventAnimation() {
     return;
   }
 
+  if (type === 'pickaxe') {
+    drawPickaxe();
+    return;
+  }
+
+  if (type === 'windmill') {
+    drawWindmill();
+    return;
+  }
+
   if (type === 'plutonium') {
     drawPlutonium();
+    return;
+  }
+
+  if (type === 'natives') {
+    drawNatives();
+    return;
+  }
+
+  if (type === 'nativeRide') {
+    drawNativeRide();
     return;
   }
 
@@ -1180,6 +1574,70 @@ function drawPlutonium() {
   ctx.fillRect(x + 38 + pulse * 3, y - 2, 18, 3);
 
   ctx.fillStyle = 'rgba(110, 228, 255, 0.18)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function drawPickaxe() {
+  const { x, y } = getCrawlerPosition();
+  ctx.fillStyle = '#66ffd8';
+  ctx.fillRect(x - 24, y - 44, 5, 26);
+  ctx.fillRect(x + 19, y - 44, 5, 26);
+  ctx.fillStyle = '#baffef';
+  ctx.fillRect(x - 31, y - 47, 18, 7);
+  ctx.fillRect(x + 13, y - 47, 18, 7);
+  ctx.fillStyle = 'rgba(102, 255, 216, 0.12)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function drawWindmill() {
+  const { x, y } = getCrawlerPosition();
+  const phase = Math.floor(state.eventAnim.tick) % 4;
+  ctx.fillStyle = '#89e6ff';
+  ctx.fillRect(x - 2, y - 48, 4, 40);
+  ctx.fillRect(x - 26, y - 30, 52, 4);
+  ctx.fillRect(x - 2, y - 54, 4, 52);
+  if (phase % 2 === 0) {
+    ctx.fillRect(x - 20, y - 46, 40, 4);
+    ctx.fillRect(x - 20, y - 14, 40, 4);
+  } else {
+    ctx.fillRect(x - 18, y - 42, 4, 32);
+    ctx.fillRect(x + 14, y - 42, 4, 32);
+  }
+  ctx.fillStyle = 'rgba(137, 230, 255, 0.12)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function drawNatives() {
+  const { x, y } = getCrawlerPosition();
+  const tick = Math.floor(state.eventAnim.tick) % 4;
+
+  for (let i = 0; i < 3; i += 1) {
+    const nx = x + 54 + i * 26;
+    const ny = y - 6 + (i % 2 === 0 ? 0 : 6);
+    ctx.fillStyle = '#5e2f88';
+    ctx.fillRect(nx, ny - 22, 10, 18);
+    ctx.fillRect(nx + 2, ny - 30, 6, 8);
+    ctx.fillRect(nx + 1, ny - 4, 3, 9);
+    ctx.fillRect(nx + 6, ny - 4, 3, 9);
+    ctx.fillStyle = '#2ddc8c';
+    ctx.fillRect(nx + 2, ny - 27, 2, 2);
+    ctx.fillRect(nx + 6, ny - 27, 2, 2);
+    ctx.fillRect(nx + 3, ny - 20, 4, 2);
+    ctx.fillRect(nx + 8, ny - 20 - tick, 3, 8 + tick);
+  }
+
+  ctx.fillStyle = '#a6ff7f';
+  ctx.font = '14px Courier New';
+  ctx.fillText('TRADE?', x + 42, y - 42);
+}
+
+function drawNativeRide() {
+  const { x, y } = getCrawlerPosition();
+  drawNatives();
+  ctx.fillStyle = '#74f3ff';
+  ctx.fillRect(x - 38, y + 14, 76, 6);
+  ctx.fillRect(x - 26, y + 8, 52, 4);
+  ctx.fillStyle = 'rgba(116, 243, 255, 0.16)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
