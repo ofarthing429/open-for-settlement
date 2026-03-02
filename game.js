@@ -662,7 +662,14 @@ function buyNativeOffer(offerId) {
   state.points -= offer.price;
   storePoints();
 
-  if (offer.scam) {
+  if (offer.kind === 'foodCrate') {
+    if (offer.scam) {
+      addLog('The food crate was packed with black sand. Scam trade.', 'bad');
+    } else {
+      state.food += 50;
+      addLog(`Bought Food Crate from the natives for ${offer.price} points. +50 food.`, 'good');
+    }
+  } else if (offer.scam) {
     state.inventory[offer.inventoryKey] += 1;
     state.fakeInventory[offer.inventoryKey] += 1;
     addLog(`The traders sell you a fake ${offer.label.toLowerCase()}.`, 'bad');
@@ -712,6 +719,7 @@ function buildNativeOffers() {
     { kind: 'repair', inventoryKey: 'repairKits', label: 'Repair Kit', description: 'Patch the hull for +30 HP.', min: 10, max: 26, scamChance: 0.08 },
     { kind: 'spray', inventoryKey: 'antiNibSpray', label: 'Anti-Nib Spray', description: 'Arms until a Nibblorax hits.', min: 3, max: 11, scamChance: 0.08 },
     { kind: 'bouncer', inventoryKey: 'bouncer', label: 'Bouncer', description: 'Launches a 5-turn safe jump.', min: 22, max: 42, scamChance: 0.1 },
+    { kind: 'foodCrate', inventoryKey: null, label: 'Food Crate', description: 'Immediate +50 food.', min: 10, max: 24, scamChance: 0.06 },
     { kind: 'sonar', inventoryKey: 'sonarDisrupter', label: 'Sonar Disrupter', description: 'Arms until the worm comes.', min: 80, max: 125, scamChance: 0.1 },
     { kind: 'pickaxe', inventoryKey: 'specialPickaxes', label: 'Special Pickaxe', description: 'Turns coral damage into +20 HP when armed.', min: 18, max: 34, scamChance: 0.09 },
     { kind: 'windmill', inventoryKey: 'windmills', label: 'Windmill', description: 'Arms until weather, then skips a free turn.', min: 14, max: 28, scamChance: 0.09 },
