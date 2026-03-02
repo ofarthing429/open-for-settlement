@@ -24,6 +24,10 @@ const pointsValue = document.getElementById('pointsValue');
 const targetValue = document.getElementById('targetValue');
 const hpValue = document.getElementById('hpValue');
 const hpBarFill = document.getElementById('hpBarFill');
+const recordRuns = document.getElementById('recordRuns');
+const recordWins = document.getElementById('recordWins');
+const recordBestPoints = document.getElementById('recordBestPoints');
+const recordBestTurns = document.getElementById('recordBestTurns');
 const repairCount = document.getElementById('repairCount');
 const sprayCount = document.getElementById('sprayCount');
 const sonarCount = document.getElementById('sonarCount');
@@ -39,6 +43,7 @@ ctx.imageSmoothingEnabled = false;
 const POINTS_STORAGE_KEY = 'black-sand-colony-run-points';
 const MAX_HP_STORAGE_KEY = 'black-sand-colony-run-max-hp';
 const INVESTOR_STORAGE_KEY = 'black-sand-colony-run-investor';
+const RECORDS_STORAGE_KEY = 'black-sand-colony-run-records';
 
 const state = {
   running: false,
@@ -63,6 +68,12 @@ const state = {
   sprayArmed: false,
   sonarArmed: false,
   investorOwned: false,
+  records: {
+    runs: 0,
+    wins: 0,
+    bestPoints: 0,
+    bestTurns: 0,
+  },
 };
 
 const eventTable = [
@@ -107,6 +118,7 @@ function startGame() {
   state.points = loadStoredPoints();
   state.maxHp = loadStoredMaxHp();
   state.investorOwned = loadStoredInvestor();
+  state.records = loadStoredRecords();
   state.hp = state.maxHp;
   state.turnsToWin = randInt(15, 50);
   state.trackLength = state.turnsToWin + 2;
@@ -132,12 +144,14 @@ function startGame() {
 
   syncHud();
   syncInventoryUi();
+  syncRecordsUi();
   draw();
 }
 
 function showSetup() {
   titlePanel.classList.add('hidden');
   setupPanel.classList.remove('hidden');
+  syncRecordsUi();
 }
 
 function advanceTurn() {
@@ -454,6 +468,7 @@ function endGame(message, cause = '') {
   if (cause) {
     state.deathMode = cause;
   }
+  updateRecords(cause === 'win');
   nextTurnBtn.disabled = true;
   setItemButtonsDisabled(true);
   addLog(message, message.includes('success') ? 'good' : 'bad');
@@ -533,6 +548,61 @@ function storeInvestor() {
   } catch {
     // Ignore storage failures and keep investor state in memory for the session.
   }
+}
+
+function loadStoredRecords() {
+  try {
+    const raw = window.localStorage.getItem(RECORDS_STORAGE_KEY);
+    if (!raw) {
+      return {
+        runs: 0,
+        wins: 0,
+        bestPoints: 0,
+        bestTurns: 0,
+      };
+    }
+
+    const parsed = JSON.parse(raw);
+    return {
+      runs: Number.isFinite(parsed.runs) ? Math.max(0, Math.floor(parsed.runs)) : 0,
+      wins: Number.isFinite(parsed.wins) ? Math.max(0, Math.floor(parsed.wins)) : 0,
+      bestPoints: Number.isFinite(parsed.bestPoints) ? Math.max(0, Math.floor(parsed.bestPoints)) : 0,
+      bestTurns: Number.isFinite(parsed.bestTurns) ? Math.max(0, Math.floor(parsed.bestTurns)) : 0,
+    };
+  } catch {
+    return {
+      runs: 0,
+      wins: 0,
+      bestPoints: 0,
+      bestTurns: 0,
+    };
+  }
+}
+
+function storeRecords() {
+  try {
+    window.localStorage.setItem(RECORDS_STORAGE_KEY, JSON.stringify(state.records));
+  } catch {
+    // Ignore storage failures and keep records in memory for the session.
+  }
+}
+
+function updateRecords(won) {
+  state.records.runs += 1;
+  if (won) {
+    state.records.wins += 1;
+  }
+  state.records.bestPoints = Math.max(state.records.bestPoints, state.points);
+  state.records.bestTurns = Math.max(state.records.bestTurns, state.turn);
+  storeRecords();
+  syncRecordsUi();
+}
+
+function syncRecordsUi() {
+  recordRuns.textContent = String(state.records.runs);
+  recordWins.textContent = String(state.records.wins);
+  recordBestPoints.textContent = String(state.records.bestPoints);
+  recordBestTurns.textContent = String(state.records.bestTurns);
 }
 
 function syncInventoryUi() {
@@ -1148,9 +1218,11 @@ function getCrawlerPosition() {
 state.points = loadStoredPoints();
 state.maxHp = loadStoredMaxHp();
 state.investorOwned = loadStoredInvestor();
+state.records = loadStoredRecords();
 state.hp = state.maxHp;
 state.turnsToWin = 20;
 state.trackLength = 22;
 syncInventoryUi();
 syncHud();
+syncRecordsUi();
 draw();

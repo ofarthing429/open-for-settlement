@@ -122,6 +122,26 @@ body {
   max-width: 38ch;
 }
 
+.recordsPanel {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(150, 162, 189, 0.28);
+}
+
+.recordsPanel h2 {
+  margin: 0 0 8px;
+  color: #f0e1b5;
+  font-size: 1rem;
+}
+
+.recordsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+  color: #d6d0bf;
+  font-size: 0.92rem;
+}
+
 input,
 button {
   font: inherit;
