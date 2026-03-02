@@ -114,7 +114,7 @@ const eventTable = [
   { key: 'wreckage', weight: 7, text: 'You found wreckage supplies. +25 HP' },
   { key: 'orchard', weight: 6, text: 'Glowcore Orchard discovered. +50 food' },
   { key: 'plutonium', weight: 3, text: 'Plutonium deposit found. Reactor jump engaged.' },
-  { key: 'natives', weight: 4, text: 'Native traders flag you down from the dunes.' },
+  { key: 'natives', weight: 8, text: 'Native traders flag you down from the dunes.' },
   { key: 'worm', weight: 1, kill: true, text: 'The worm erupts from beneath you. Instant kill.' },
 ];
 
