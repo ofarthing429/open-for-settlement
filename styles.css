@@ -356,6 +356,17 @@ button:disabled {
   margin-top: 6px;
 }
 
+.tabletCard {
+  width: min(760px, 100%);
+}
+
+.tabletBody {
+  white-space: pre-line;
+  color: #ddd7c9;
+  line-height: 1.5;
+  margin: 0 0 14px;
+}
+
 canvas {
   width: 100%;
   height: auto;

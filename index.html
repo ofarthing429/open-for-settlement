@@ -111,6 +111,12 @@
             <div class="subState">Status: <span id="windmillStatus">Inactive</span></div>
             <button id="windmillBtn">Arm Windmill</button>
           </div>
+          <h2>Lore</h2>
+          <div class="inventoryItem">
+            <div>Ancient Tablets: <span id="tabletCount">0</span></div>
+            <div class="subState">Recovered: <span id="tabletStatus">None</span></div>
+            <button id="readTabletBtn">Read Tablet</button>
+          </div>
           <p class="inventoryNote">Wreckage can contain repair kits or spray, never bouncers.</p>
 
           <h2>Store</h2>
@@ -164,6 +170,14 @@
             </section>
           </div>
           <button id="declineTraderBtn">Decline Trade</button>
+        </div>
+      </section>
+
+      <section id="tabletPanel" class="traderPanel hidden">
+        <div class="traderCard tabletCard">
+          <h2 id="tabletTitle">Ancient Tablet</h2>
+          <p id="tabletBody" class="tabletBody"></p>
+          <button id="closeTabletBtn">Close Tablet</button>
         </div>
       </section>
     </section>

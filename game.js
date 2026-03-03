@@ -23,6 +23,10 @@ const nativeTraderPanel = document.getElementById('nativeTraderPanel');
 const traderOffers = document.getElementById('traderOffers');
 const traderSellOffers = document.getElementById('traderSellOffers');
 const declineTraderBtn = document.getElementById('declineTraderBtn');
+const tabletPanel = document.getElementById('tabletPanel');
+const tabletTitle = document.getElementById('tabletTitle');
+const tabletBody = document.getElementById('tabletBody');
+const closeTabletBtn = document.getElementById('closeTabletBtn');
 
 const turnValue = document.getElementById('turnValue');
 const foodValue = document.getElementById('foodValue');
@@ -40,10 +44,13 @@ const sonarCount = document.getElementById('sonarCount');
 const bouncerCount = document.getElementById('bouncerCount');
 const pickaxeCount = document.getElementById('pickaxeCount');
 const windmillCount = document.getElementById('windmillCount');
+const tabletCount = document.getElementById('tabletCount');
 const sprayStatus = document.getElementById('sprayStatus');
 const sonarStatus = document.getElementById('sonarStatus');
 const pickaxeStatus = document.getElementById('pickaxeStatus');
 const windmillStatus = document.getElementById('windmillStatus');
+const tabletStatus = document.getElementById('tabletStatus');
+const readTabletBtn = document.getElementById('readTabletBtn');
 const log = document.getElementById('log');
 
 const canvas = document.getElementById('gameCanvas');
@@ -57,6 +64,14 @@ const RECORD_RUNS_STORAGE_KEY = 'black-sand-colony-run-record-runs';
 const RECORD_WINS_STORAGE_KEY = 'black-sand-colony-run-record-wins';
 const RECORD_BEST_POINTS_STORAGE_KEY = 'black-sand-colony-run-record-best-points';
 const RECORD_BEST_TURNS_STORAGE_KEY = 'black-sand-colony-run-record-best-turns';
+const TABLET_STORAGE_KEY = 'black-sand-colony-run-tablets';
+
+const TABLETS = {
+  terrarex: {
+    title: 'Ancient Tablet: Terrarex',
+    body: `The great city of Terrarex, thought to be unstoppable, was wiped out by the Elder Vermis. The horrific monster annihilated Terrarex by turning the land against them. The land swallowed Terrarex, and no person could escape their prison. The people of Terrarex made a secret tunnel that led to the surface in which the exact coordinates are unknown, and inside, there are greater treasures and wisdom than one could ever imagine. But, it is cursed, those that search for it in the Mergi Wastes never return.\n\nScrawled at the bottom of the text lay the coordinates of the temple.`,
+  },
+};
 
 const state = {
   running: false,
@@ -97,6 +112,10 @@ const state = {
   traderOffers: [],
   traderSellOffers: [],
   traderOpen: false,
+  tabletOpen: false,
+  lore: {
+    terrarex: false,
+  },
   records: {
     runs: 0,
     wins: 0,
@@ -114,6 +133,7 @@ const eventTable = [
   { key: 'wreckage', weight: 7, text: 'You found wreckage supplies. +25 HP' },
   { key: 'orchard', weight: 6, text: 'Glowcore Orchard discovered. +50 food' },
   { key: 'plutonium', weight: 3, text: 'Plutonium deposit found. Reactor jump engaged.' },
+  { key: 'tablet', weight: 2, text: 'A black stone tablet juts half-buried from the sand.' },
   { key: 'natives', weight: 8, text: 'Native traders flag you down from the dunes.' },
   { key: 'worm', weight: 1, kill: true, text: 'The worm erupts from beneath you. Instant kill.' },
 ];
@@ -129,8 +149,11 @@ restartBtn.addEventListener('click', () => {
   setupPanel.classList.add('hidden');
   gamePanel.classList.add('hidden');
   nativeTraderPanel.classList.add('hidden');
+  tabletPanel.classList.add('hidden');
   state.traderOpen = false;
+  state.tabletOpen = false;
   syncRecordsUi();
+  syncLoreUi();
 });
 repairBtn.addEventListener('click', useRepairKit);
 sprayBtn.addEventListener('click', useSpray);
@@ -145,6 +168,8 @@ buyHpBtn.addEventListener('click', () => buyItem('maxHp'));
 buySonarBtn.addEventListener('click', () => buyItem('sonar'));
 buyInvestorBtn.addEventListener('click', () => buyItem('investor'));
 declineTraderBtn.addEventListener('click', closeNativeTrader);
+readTabletBtn.addEventListener('click', () => openTabletReader('terrarex'));
+closeTabletBtn.addEventListener('click', closeTabletReader);
 
 function startGame() {
   const chosenFood = Number(foodInput.value);
@@ -158,6 +183,7 @@ function startGame() {
   state.maxHp = loadStoredMaxHp();
   state.investorOwned = loadStoredInvestor();
   state.records = loadStoredRecords();
+  state.lore = loadStoredTablets();
   state.hp = state.maxHp;
   state.turnsToWin = randInt(15, 50);
   state.trackLength = state.turnsToWin + 2;
@@ -185,11 +211,13 @@ function startGame() {
   state.traderOffers = [];
   state.traderSellOffers = [];
   state.traderOpen = false;
+  state.tabletOpen = false;
 
   titlePanel.classList.add('hidden');
   setupPanel.classList.add('hidden');
   gamePanel.classList.remove('hidden');
   nativeTraderPanel.classList.add('hidden');
+  tabletPanel.classList.add('hidden');
   nextTurnBtn.disabled = false;
 
   log.innerHTML = '';
@@ -199,6 +227,7 @@ function startGame() {
   syncHud();
   syncInventoryUi();
   syncRecordsUi();
+  syncLoreUi();
   draw();
 }
 
@@ -209,7 +238,7 @@ function showSetup() {
 }
 
 function advanceTurn() {
-  if (!state.running || state.gameOver || state.traderOpen) {
+  if (!state.running || state.gameOver || state.traderOpen || state.tabletOpen) {
     return;
   }
 
@@ -217,7 +246,7 @@ function advanceTurn() {
 }
 
 function processTurn({ skipHazards, skipLabel = '' }) {
-  if (!state.running || state.gameOver || state.traderOpen) {
+  if (!state.running || state.gameOver || state.traderOpen || state.tabletOpen) {
     return;
   }
 
@@ -310,6 +339,12 @@ function applyEvent(event) {
   if (event.key === 'natives') {
     openNativeTrader();
     triggerEventAnimation('natives', 88);
+    return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
+  }
+
+  if (event.key === 'tablet') {
+    collectTablet('terrarex');
+    triggerEventAnimation('tablet', 84);
     return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
   }
 
@@ -592,6 +627,46 @@ function closeNativeTrader() {
   }
 }
 
+function collectTablet(id) {
+  const tablet = TABLETS[id];
+  if (!tablet) {
+    return;
+  }
+
+  if (!state.lore[id]) {
+    state.lore[id] = true;
+    storeTablets();
+    addLog(`Recovered ${tablet.title}. It has been added to your lore archive.`, 'good');
+  } else {
+    addLog(`You uncover another copy of ${tablet.title}.`, 'good');
+  }
+
+  syncLoreUi();
+}
+
+function openTabletReader(id) {
+  if (!state.lore[id] || !TABLETS[id]) {
+    return;
+  }
+
+  const tablet = TABLETS[id];
+  state.tabletOpen = true;
+  tabletTitle.textContent = tablet.title;
+  tabletBody.textContent = tablet.body;
+  tabletPanel.classList.remove('hidden');
+  nextTurnBtn.disabled = true;
+  syncInventoryUi();
+}
+
+function closeTabletReader() {
+  state.tabletOpen = false;
+  tabletPanel.classList.add('hidden');
+  if (!state.gameOver && !state.traderOpen) {
+    nextTurnBtn.disabled = false;
+  }
+  syncInventoryUi();
+}
+
 function renderNativeOffers() {
   traderOffers.innerHTML = '';
   traderSellOffers.innerHTML = '';
@@ -847,7 +922,9 @@ function endGame(message, cause = '') {
   state.gameOver = true;
   state.running = false;
   state.traderOpen = false;
+  state.tabletOpen = false;
   nativeTraderPanel.classList.add('hidden');
+  tabletPanel.classList.add('hidden');
   if (cause) {
     state.deathMode = cause;
   }
@@ -930,6 +1007,28 @@ function storeInvestor() {
     window.localStorage.setItem(INVESTOR_STORAGE_KEY, String(state.investorOwned));
   } catch {
     // Ignore storage failures and keep investor state in memory for the session.
+  }
+}
+
+function loadStoredTablets() {
+  try {
+    const raw = window.localStorage.getItem(TABLET_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return {
+      terrarex: parsed.terrarex === true,
+    };
+  } catch {
+    return {
+      terrarex: false,
+    };
+  }
+}
+
+function storeTablets() {
+  try {
+    window.localStorage.setItem(TABLET_STORAGE_KEY, JSON.stringify(state.lore));
+  } catch {
+    // Ignore storage failures and keep lore in memory for the session.
   }
 }
 
@@ -1017,6 +1116,13 @@ function syncRecordsUi() {
   recordBestTurns.textContent = String(state.records.bestTurns);
 }
 
+function syncLoreUi() {
+  const tabletFound = state.lore.terrarex === true;
+  tabletCount.textContent = tabletFound ? '1' : '0';
+  tabletStatus.textContent = tabletFound ? 'Terrarex tablet recovered' : 'None';
+  readTabletBtn.disabled = !tabletFound;
+}
+
 function syncInventoryUi() {
   repairCount.textContent = String(state.inventory.repairKits);
   sprayCount.textContent = String(state.inventory.antiNibSpray);
@@ -1029,7 +1135,7 @@ function syncInventoryUi() {
   pickaxeStatus.textContent = state.pickaxeArmed ? 'Armed' : 'Inactive';
   windmillStatus.textContent = state.windmillArmed ? 'Armed' : 'Inactive';
 
-  const inactive = !state.running || state.gameOver || state.traderOpen;
+  const inactive = !state.running || state.gameOver || state.traderOpen || state.tabletOpen;
   repairBtn.disabled = inactive || state.inventory.repairKits <= 0 || state.hp >= state.maxHp;
   sprayBtn.disabled = inactive || state.inventory.antiNibSpray <= 0 || state.sprayArmed;
   sonarBtn.disabled = inactive || state.inventory.sonarDisrupter <= 0 || state.sonarArmed;
@@ -1042,6 +1148,9 @@ function syncInventoryUi() {
   buyHpBtn.disabled = state.traderOpen || state.points < 50;
   buySonarBtn.disabled = state.traderOpen || state.points < 100;
   buyInvestorBtn.disabled = state.traderOpen || state.points < 75 || state.investorOwned;
+  if (state.lore.terrarex !== true) {
+    readTabletBtn.disabled = true;
+  }
 }
 
 function setItemButtonsDisabled(disabled) {
@@ -1057,6 +1166,7 @@ function setItemButtonsDisabled(disabled) {
   buyHpBtn.disabled = disabled;
   buySonarBtn.disabled = disabled;
   buyInvestorBtn.disabled = disabled;
+  readTabletBtn.disabled = disabled || !state.lore.terrarex;
 }
 
 function addLog(text, tone = '') {
@@ -1346,6 +1456,11 @@ function drawEventAnimation() {
     return;
   }
 
+  if (type === 'tablet') {
+    drawTablet();
+    return;
+  }
+
   if (type === 'natives') {
     drawNatives();
     return;
@@ -1593,6 +1708,27 @@ function drawPlutonium() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
+function drawTablet() {
+  const { x, y } = getCrawlerPosition();
+  const lift = Math.min(6, Math.floor((state.eventAnim ? state.eventAnim.tick : 0) / 3));
+
+  ctx.fillStyle = 'rgba(210, 190, 140, 0.08)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = '#161217';
+  ctx.fillRect(x + 18, y - 2 - lift, 34, 48);
+  ctx.fillStyle = '#0b0b0d';
+  ctx.fillRect(x + 22, y + 2 - lift, 26, 40);
+  ctx.fillStyle = '#2a2730';
+  ctx.fillRect(x + 24, y + 10 - lift, 20, 2);
+  ctx.fillRect(x + 24, y + 19 - lift, 18, 2);
+  ctx.fillRect(x + 24, y + 28 - lift, 16, 2);
+
+  ctx.fillStyle = '#0d0b0a';
+  ctx.fillRect(x + 10, y + 26, 58, 12);
+  ctx.fillRect(x + 16, y + 36, 44, 10);
+}
+
 function drawPickaxe() {
   const { x, y } = getCrawlerPosition();
   ctx.fillStyle = '#66ffd8';
@@ -1759,10 +1895,12 @@ state.points = loadStoredPoints();
 state.maxHp = loadStoredMaxHp();
 state.investorOwned = loadStoredInvestor();
 state.records = loadStoredRecords();
+state.lore = loadStoredTablets();
 state.hp = state.maxHp;
 state.turnsToWin = 20;
 state.trackLength = 22;
 syncInventoryUi();
 syncHud();
 syncRecordsUi();
+syncLoreUi();
 draw();
