@@ -438,10 +438,10 @@ button:disabled {
 }
 
 .regionBiome.mergi {
-  left: 42%;
-  bottom: 18%;
-  width: 190px;
-  height: 140px;
+  left: 26%;
+  bottom: 14%;
+  width: 280px;
+  height: 170px;
   background: radial-gradient(circle, rgba(110, 90, 70, 0.4) 0%, rgba(110, 90, 70, 0.1) 68%, rgba(110, 90, 70, 0) 100%);
 }
 
@@ -451,14 +451,6 @@ button:disabled {
   width: 140px;
   height: 110px;
   background: radial-gradient(circle, rgba(161, 255, 135, 0.35) 0%, rgba(161, 255, 135, 0.08) 68%, rgba(161, 255, 135, 0) 100%);
-}
-
-.regionBiome.sinking {
-  left: 20%;
-  bottom: 18%;
-  width: 150px;
-  height: 120px;
-  background: radial-gradient(circle, rgba(240, 153, 86, 0.28) 0%, rgba(240, 153, 86, 0.08) 68%, rgba(240, 153, 86, 0) 100%);
 }
 
 .regionCard {
@@ -488,12 +480,6 @@ button:disabled {
 .regionCard.bottom-left {
   left: 18px;
   bottom: 16px;
-}
-
-.regionCard.bottom-center {
-  left: 50%;
-  bottom: 16px;
-  transform: translateX(-50%);
 }
 
 .regionCard h2 {

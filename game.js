@@ -127,8 +127,8 @@ const REGION_DATA = {
   mergi: {
     id: 'mergi',
     name: 'Mergi Wastes',
-    summary: 'Nothing good lives here. Sinking sand and Nibbloraxes own the place.',
-    mapText: 'Mergi Wastes: the cursed sink basin from the Terrarex tablet.',
+    summary: 'The Mergi Wastes are the sinking fields: cursed ground, Nibbloraxes, and constant collapse.',
+    mapText: 'Mergi Wastes: the sinking fields from the Terrarex tablet.',
     foodMult: 0.55,
     mineMult: 0.75,
     factoryMult: 0.9,
@@ -145,17 +145,6 @@ const REGION_DATA = {
     factoryMult: 1.1,
     supplyUpkeep: 1,
     cyclePoints: 12,
-  },
-  sinking: {
-    id: 'sinking',
-    name: 'Sinking Fields',
-    summary: 'The ground never wants to hold. Stabilization eats supplies every cycle.',
-    mapText: 'Sinking Fields: flat land, unstable footing, endless reinforcement.',
-    foodMult: 0.95,
-    mineMult: 1,
-    factoryMult: 1,
-    supplyUpkeep: 6,
-    cyclePoints: 7,
   },
 };
 
@@ -880,8 +869,7 @@ function renderRegionGrid() {
     forest: { card: 'top-left', biome: 'forest', line: { x1: 210, y1: 120, x2: 330, y2: 165 } },
     flats: { card: 'top-right', biome: 'flats', line: { x1: 640, y1: 120, x2: 555, y2: 165 } },
     capital: { card: 'mid-right', biome: 'capital', line: { x1: 638, y1: 255, x2: 530, y2: 255 } },
-    sinking: { card: 'bottom-left', biome: 'sinking', line: { x1: 214, y1: 440, x2: 310, y2: 360 } },
-    mergi: { card: 'bottom-center', biome: 'mergi', line: { x1: 410, y1: 440, x2: 430, y2: 350 } },
+    mergi: { card: 'bottom-left', biome: 'mergi', line: { x1: 214, y1: 440, x2: 360, y2: 340 } },
   };
 
   for (const key of Object.keys(positions)) {
@@ -1223,6 +1211,10 @@ function resolveRegionCycleEvents(region) {
       colony.food = Math.max(0, colony.food - foodLoss);
       addColonyLog(`Nibbloraxes stripped ${foodLoss} food from the depots.`, 'bad');
     }
+    const supplyLoss = randInt(8, 14);
+    colony.supplies = Math.max(0, colony.supplies - supplyLoss);
+    colony.stability = Math.max(0, colony.stability - 8);
+    addColonyLog(`Sinking field supports failed. ${supplyLoss} more supplies were spent to stabilize them.`, 'bad');
   }
 
   if (region.id === 'capital' && Math.random() < 0.55) {
@@ -1231,13 +1223,6 @@ function resolveRegionCycleEvents(region) {
     state.points += 18;
     storePoints();
     addColonyLog(`Native trade caravans delivered ${gain} supplies and 18 points.`, 'good');
-  }
-
-  if (region.id === 'sinking' && Math.random() < 0.34) {
-    const supplyLoss = randInt(8, 14);
-    colony.supplies = Math.max(0, colony.supplies - supplyLoss);
-    colony.stability = Math.max(0, colony.stability - 8);
-    addColonyLog(`Sinking field supports failed. ${supplyLoss} supplies were spent to stabilize them.`, 'bad');
   }
 }
 
