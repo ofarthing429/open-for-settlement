@@ -64,6 +64,8 @@ const barracksCount = document.getElementById('barracksCount');
 const explorerStatus = document.getElementById('explorerStatus');
 const explorerOutposts = document.getElementById('explorerOutposts');
 const explorerTargets = document.getElementById('explorerTargets');
+const supportColonyStatus = document.getElementById('supportColonyStatus');
+const supportColonyList = document.getElementById('supportColonyList');
 const templeSearchHeading = document.getElementById('templeSearchHeading');
 const templeSearchPanel = document.getElementById('templeSearchPanel');
 const templeSearchStatus = document.getElementById('templeSearchStatus');
@@ -1096,24 +1098,37 @@ function loadStoredColony() {
       ? parsed.specialTiles
       : buildSpecialTilesForRegion(parsed.region, parsed.core);
     parsed.supportColonies = Array.isArray(parsed.supportColonies)
-      ? parsed.supportColonies.filter((colony) => colony && REGION_DATA[colony.region])
+      ? parsed.supportColonies
+        .filter((colony) => colony && REGION_DATA[colony.region])
+        .map((colony) => {
+          if (Array.isArray(colony.territory) && colony.territory.length > 0) {
+            return colony;
+          }
+          const migrated = createColonyState(colony.region, {
+            cycle: Number.isFinite(colony.cycle) ? colony.cycle : 0,
+            buildings: {
+              farms: colony.buildings?.farms || 1,
+              powerPlants: colony.buildings?.powerPlants || 1,
+              mines: colony.buildings?.mines || 1,
+              factories: colony.buildings?.factories || 0,
+              businessHouses: colony.buildings?.businessHouses || 0,
+              storageHouses: colony.buildings?.storageHouses || 1,
+              barracks: colony.buildings?.barracks || 0,
+            },
+            food: 140,
+            supplies: 150,
+            plutonium: 18,
+            techBoost: Boolean(colony.techBoost),
+            log: [{ text: `${REGION_DATA[colony.region].name} support colony preserved from older campaign data.`, tone: '' }],
+          });
+          return migrated;
+        })
       : [];
     if (!parsed.supportColonies.length && Array.isArray(parsed.outposts)) {
       parsed.supportColonies = parsed.outposts
         .filter((regionId) => REGION_DATA[regionId])
-        .map((regionId) => ({
-          region: regionId,
-          cycle: 0,
-          buildings: {
-            farms: 1,
-            powerPlants: 1,
-            mines: 1,
-            factories: 0,
-            businessHouses: 0,
-            storageHouses: 1,
-            barracks: 0,
-          },
-          territoryCount: 1,
+        .map((regionId) => createColonyState(regionId, {
+          log: [{ text: `${REGION_DATA[regionId].name} support colony preserved from legacy outpost data.`, tone: '' }],
         }));
     }
     parsed.explorer = parsed.explorer && typeof parsed.explorer === 'object' ? parsed.explorer : {};
@@ -1245,18 +1260,14 @@ function advanceExplorerProgress() {
 
   const targetRegion = explorer.targetRegion;
   const oldColony = state.colony;
-  const supportSnapshot = {
-    region: oldColony.region,
-    cycle: oldColony.cycle,
-    buildings: { ...oldColony.buildings },
-    territoryCount: oldColony.territory.length,
-  };
+  const supportSnapshot = snapshotSupportColony(oldColony);
   const mergedSupportColonies = [
     ...(oldColony.supportColonies || []),
     supportSnapshot,
   ];
   state.colony = createColonyState(targetRegion, {
     supportColonies: mergedSupportColonies,
+    techBoost: Boolean(oldColony.techBoost),
     log: [
       { text: `The Explorer reached ${REGION_DATA[targetRegion].name} and founded a new colony from scratch.`, tone: 'good' },
       { text: `Support convoys from ${REGION_DATA[supportSnapshot.region].name} are already on the way.`, tone: 'good' },
@@ -1274,11 +1285,12 @@ function applySupportColonyEffects() {
   for (const support of state.colony.supportColonies) {
     support.cycle = (support.cycle || 0) + 1;
     const buildings = support.buildings || {};
-    const territoryCount = support.territoryCount || 1;
+    const territoryCount = Array.isArray(support.territory) ? support.territory.length : 1;
     const region = REGION_DATA[support.region];
-    const food = Math.max(0, Math.round(buildings.farms * 4 * region.foodMult + territoryCount * 0.5));
-    const supplies = Math.max(0, Math.round(buildings.factories * 4 * region.factoryMult + buildings.mines * 2 * region.mineMult));
-    const plutonium = Math.max(0, Math.round(buildings.mines * 3 * region.mineMult));
+    const boost = support.techBoost ? 2 : 1;
+    const food = Math.max(0, Math.round(buildings.farms * 4 * region.foodMult * boost + territoryCount * 0.5));
+    const supplies = Math.max(0, Math.round((buildings.factories * 4 * region.factoryMult + buildings.mines * 2 * region.mineMult) * boost));
+    const plutonium = Math.max(0, Math.round(buildings.mines * 3 * region.mineMult * boost));
     const points = support.region === 'capital' ? 4 : support.region === 'mergi' ? 2 : 1;
     state.colony.food += food;
     state.colony.supplies += supplies;
@@ -1295,6 +1307,63 @@ function canSearchTemple(colony = state.colony) {
     && colony.region === 'mergi'
     && state.lore.terrarex === true
   );
+}
+
+function getBuildingBoost(colony = state.colony) {
+  return colony && colony.techBoost ? 2 : 1;
+}
+
+function cloneColonyData(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function snapshotSupportColony(colony) {
+  return {
+    active: true,
+    region: colony.region,
+    cycle: colony.cycle,
+    food: colony.food,
+    supplies: colony.supplies,
+    plutonium: colony.plutonium,
+    power: colony.power,
+    powerDemand: colony.powerDemand,
+    stability: colony.stability,
+    buildings: cloneColonyData(colony.buildings),
+    core: cloneColonyData(colony.core),
+    territory: cloneColonyData(colony.territory),
+    specialTiles: cloneColonyData(colony.specialTiles),
+    explorer: cloneColonyData(colony.explorer),
+    templeSearch: cloneColonyData(colony.templeSearch),
+    techBoost: Boolean(colony.techBoost),
+    lastInstabilityCauses: cloneColonyData(colony.lastInstabilityCauses || []),
+    log: cloneColonyData(colony.log || []),
+  };
+}
+
+function switchToSupportColony(index) {
+  if (!state.colony || !Array.isArray(state.colony.supportColonies) || !state.colony.supportColonies[index]) {
+    return;
+  }
+
+  const currentSnapshot = snapshotSupportColony(state.colony);
+  const nextActive = cloneColonyData(state.colony.supportColonies[index]);
+  const remaining = state.colony.supportColonies
+    .filter((_, itemIndex) => itemIndex !== index)
+    .map((colony) => cloneColonyData(colony));
+
+  nextActive.supportColonies = [...remaining, currentSnapshot];
+  nextActive.active = true;
+  if (!nextActive.log) {
+    nextActive.log = [];
+  }
+  nextActive.log.unshift({ text: `Command transferred to ${REGION_DATA[nextActive.region].name}.`, tone: 'good' });
+  nextActive.log = nextActive.log.slice(0, 18);
+  state.colony = nextActive;
+  storeColony();
+  syncColonyUi();
+  if (state.colonyMapOpen) {
+    syncTerritoryMap();
+  }
 }
 
 function startTempleSearch() {
@@ -1336,21 +1405,27 @@ function advanceTempleSearch() {
 
   search.active = false;
   search.completed = true;
-  state.colony.food += 80;
-  state.colony.supplies += 120;
-  state.colony.plutonium += 40;
-  state.colony.stability = Math.min(100, state.colony.stability + 15);
-  state.points += 250;
-  addColonyLog('The Terrarex tunnel has been found. Ancient stockpiles and sealed reactors were recovered from beneath the Mergi Wastes.', 'good');
-  addColonyLog('Temple rewards: +80 food, +120 supplies, +40 plutonium, +15 stability, +250 points.', 'good');
+  state.colony.techBoost = true;
+  addColonyLog('The Terrarex tunnel has been found. Searchers walked the buried halls and learned the ways of the natives\' ancestors.', 'good');
+  addColonyLog('There they uncovered the secret of Terrarex\'s success. All building properties are now doubled.', 'good');
+  addColonyLog('Wall writing reads:', '');
+  addColonyLog('The one who seeks fortune', '');
+  addColonyLog('will writhe with anger.', '');
+  addColonyLog('They will never get their portion.', '');
+  addColonyLog('They went with the clanger.', '');
+  addColonyLog('Seek not the forest, green with hunger.', '');
+  addColonyLog('Seek not the markets, bright with speech.', '');
+  addColonyLog('Go where the black earth glows beneath you,', '');
+  addColonyLog('where the worm sleeps just in reach.', '');
 }
 
 function getColonyCaps(colony = state.colony) {
+  const boost = getBuildingBoost(colony);
   const storage = colony.buildings.storageHouses;
   return {
-    food: 180 + storage * 120,
-    supplies: 180 + storage * 100,
-    plutonium: 60 + storage * 70,
+    food: 180 + storage * 120 * boost,
+    supplies: 180 + storage * 100 * boost,
+    plutonium: 60 + storage * 70 * boost,
   };
 }
 
@@ -1369,7 +1444,7 @@ function syncColonyUi() {
 
   const region = REGION_DATA[state.colony.region];
   const caps = getColonyCaps();
-  const defense = state.colony.buildings.barracks * 2;
+  const defense = state.colony.buildings.barracks * 2 * getBuildingBoost(state.colony);
   const regionSquareCount = REGION_MASKS[state.colony.region] ? REGION_MASKS[state.colony.region].size : 0;
   const regionFilled = isRegionFullyClaimed(state.colony);
 
@@ -1408,6 +1483,20 @@ function syncColonyUi() {
     ? `Support Colonies: ${state.colony.supportColonies.map((entry) => REGION_DATA[entry.region].name).join(', ')}`
     : 'Support Colonies: none';
 
+  supportColonyList.innerHTML = '';
+  if (state.colony.supportColonies.length === 0) {
+    supportColonyStatus.textContent = 'No support colonies available.';
+  } else {
+    supportColonyStatus.textContent = 'Visit an older colony and take command there.';
+    state.colony.supportColonies.forEach((entry, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = `Visit ${REGION_DATA[entry.region].name}`;
+      button.addEventListener('click', () => switchToSupportColony(index));
+      supportColonyList.appendChild(button);
+    });
+  }
+
   explorerTargets.innerHTML = '';
   if (state.colony.explorer.unlocked && !state.colony.explorer.traveling) {
     const targets = Object.keys(REGION_DATA).filter((regionId) => (
@@ -1436,9 +1525,9 @@ function syncColonyUi() {
   templeSearchPanel.classList.toggle('hidden', !showTempleSearch);
   if (showTempleSearch) {
     if (state.colony.templeSearch.completed) {
-      templeSearchStatus.textContent = 'The Terrarex tunnel has been located and stripped for supplies.';
+      templeSearchStatus.textContent = 'The Terrarex tunnel has been deciphered. Terrarex knowledge now doubles all building properties.';
       startTempleSearchBtn.disabled = true;
-      startTempleSearchBtn.textContent = 'Temple Found';
+      startTempleSearchBtn.textContent = 'Temple Deciphered';
     } else if (state.colony.templeSearch.active) {
       templeSearchStatus.textContent = `Search active. ${state.colony.templeSearch.turnsLeft}/${state.colony.templeSearch.totalTurns} cycles remain.`;
       startTempleSearchBtn.disabled = true;
@@ -1727,7 +1816,7 @@ function resolveHiveInfestations(cycleIssues) {
     return;
   }
 
-  const defense = state.colony.buildings.barracks * 2;
+  const defense = state.colony.buildings.barracks * 2 * getBuildingBoost(state.colony);
   const activeHives = state.colony.specialTiles.filter((tile) => tile.type === 'hive' && tile.discovered && !tile.cleared && tile.bugsRemaining > 0);
   if (activeHives.length === 0) {
     return;
@@ -1784,15 +1873,16 @@ function advanceColonyCycle() {
   }
   colony = state.colony;
   region = REGION_DATA[colony.region];
+  const buildingBoost = getBuildingBoost(colony);
   const expansionSteps = 1 + colony.buildings.businessHouses;
-  for (let i = 0; i < expansionSteps; i += 1) {
+  for (let i = 0; i < expansionSteps * buildingBoost; i += 1) {
     if (!expandColonyTerritory()) {
       break;
     }
   }
 
-  const mineOutput = Math.round(colony.buildings.mines * 8 * region.mineMult);
-  const mineSuppliesProduced = Math.round(colony.buildings.mines * 2 * region.mineMult);
+  const mineOutput = Math.round(colony.buildings.mines * 8 * region.mineMult * buildingBoost);
+  const mineSuppliesProduced = Math.round(colony.buildings.mines * 2 * region.mineMult * buildingBoost);
   colony.plutonium += mineOutput;
   colony.supplies += mineSuppliesProduced;
   addColonyLog(`Mines brought in ${mineOutput} plutonium.`, 'good');
@@ -1800,7 +1890,7 @@ function advanceColonyCycle() {
     addColonyLog(`Mines also pulled up ${mineSuppliesProduced} building supplies.`, 'good');
   }
 
-  const plutoniumForPower = Math.min(colony.buildings.powerPlants * 2, colony.plutonium);
+  const plutoniumForPower = Math.min(colony.buildings.powerPlants * 2 * buildingBoost, colony.plutonium);
   colony.plutonium -= plutoniumForPower;
   const powerProduced = plutoniumForPower * 10;
   colony.power = powerProduced;
@@ -1820,8 +1910,8 @@ function advanceColonyCycle() {
     cycleIssues.push('power shortage');
   }
 
-  const foodProduced = Math.round(colony.buildings.farms * 18 * region.foodMult * powerRatio);
-  const suppliesProduced = Math.round(colony.buildings.factories * 10 * region.factoryMult * powerRatio);
+  const foodProduced = Math.round(colony.buildings.farms * 18 * region.foodMult * powerRatio * buildingBoost);
+  const suppliesProduced = Math.round(colony.buildings.factories * 10 * region.factoryMult * powerRatio * buildingBoost);
   colony.food += foodProduced;
   colony.supplies += suppliesProduced;
   if (foodProduced > 0) {
@@ -1887,7 +1977,7 @@ function advanceColonyCycle() {
 
 function resolveRegionCycleEvents(region, cycleIssues) {
   const colony = state.colony;
-  const defense = colony.buildings.barracks * 2;
+  const defense = colony.buildings.barracks * 2 * getBuildingBoost(colony);
 
   if (region.id !== 'capital' && Math.random() < 0.28) {
     const tribeTroops = randInt(0, Math.max(0, defense * 2));
