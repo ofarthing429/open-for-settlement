@@ -44,6 +44,15 @@
             <div>Longest Run: <span id="recordBestTurns">0</span></div>
           </div>
         </section>
+        <section id="colonizePrompt" class="recordsPanel">
+          <h2>Colonization</h2>
+          <p id="colonizeText" class="setupIntro"></p>
+          <div class="controls colonizeControls">
+            <button id="colonizeYesBtn">Yes, Colonize</button>
+            <button id="colonizeNoBtn">Wait</button>
+            <button id="manageColonyBtn">Manage Colony</button>
+          </div>
+        </section>
       </div>
     </section>
 
@@ -180,6 +189,93 @@
           <button id="closeTabletBtn">Close Tablet</button>
         </div>
       </section>
+    </section>
+
+    <section id="colonyMapPanel" class="panel hidden">
+      <div class="colonyMapLayout">
+        <div class="colonyMapIntro">
+          <p class="setupKicker">Kharox Colonization Survey</p>
+          <h1>Choose A Colony Zone</h1>
+          <p class="setupIntro">
+            Violet water surrounds the landmasses of Kharox. Pick a region and commit your first colony drop.
+          </p>
+          <button id="cancelColonizeBtn">Back To Setup</button>
+        </div>
+        <div id="regionGrid" class="regionGrid"></div>
+      </div>
+    </section>
+
+    <section id="colonyPanel" class="panel hidden">
+      <header class="colonyHud">
+        <div class="leftHud">
+          <div>Region: <span id="colonyRegionValue">-</span></div>
+          <div>Cycle: <span id="colonyCycleValue">0</span></div>
+          <div>Food: <span id="colonyFoodValue">0</span></div>
+          <div>Supplies: <span id="colonySuppliesValue">0</span></div>
+        </div>
+        <div class="leftHud">
+          <div>Plutonium: <span id="colonyPlutoniumValue">0</span></div>
+          <div>Power: <span id="colonyPowerValue">0</span></div>
+          <div>Stability: <span id="colonyStabilityValue">0</span></div>
+          <div>Defense: <span id="colonyDefenseValue">0</span></div>
+        </div>
+      </header>
+
+      <div class="gameLayout colonyLayout">
+        <div class="mainColumn">
+          <section class="mapFrame colonyMapFrame">
+            <div class="colonyScene">
+              <div class="colonyWater"></div>
+              <div class="colonyLand"></div>
+              <div id="colonyRegionFlavor" class="colonyRegionFlavor"></div>
+            </div>
+          </section>
+
+          <footer class="controls">
+            <button id="advanceColonyBtn">Advance Colony Cycle</button>
+            <button id="backToSetupBtn">Back To Setup</button>
+          </footer>
+
+          <section class="logPanel">
+            <h2>Colony Log</h2>
+            <div id="colonyLog" class="log"></div>
+          </section>
+        </div>
+
+        <aside class="inventoryPanel">
+          <h2>Buildings</h2>
+          <div class="inventoryItem">
+            <div>Farms: <span id="farmCount">0</span></div>
+            <div class="subState">Food, but coral likes them.</div>
+            <button id="buildFarmBtn">Build Farm</button>
+          </div>
+          <div class="inventoryItem">
+            <div>Power Plants: <span id="powerPlantCount">0</span></div>
+            <div class="subState">Bulky reactor blocks with Tesla coils.</div>
+            <button id="buildPowerPlantBtn">Build Power Plant</button>
+          </div>
+          <div class="inventoryItem">
+            <div>Mines: <span id="mineCount">0</span></div>
+            <div class="subState">Fuel the colony. Mines need no power.</div>
+            <button id="buildMineBtn">Build Mine</button>
+          </div>
+          <div class="inventoryItem">
+            <div>Factories: <span id="factoryCount">0</span></div>
+            <div class="subState">Convert power into building supplies.</div>
+            <button id="buildFactoryBtn">Build Factory</button>
+          </div>
+          <div class="inventoryItem">
+            <div>Storage Houses: <span id="storageHouseCount">0</span></div>
+            <div class="subState">Raise food, supply, and plutonium caps.</div>
+            <button id="buildStorageBtn">Build Storage House</button>
+          </div>
+          <div class="inventoryItem">
+            <div>Barracks: <span id="barracksCount">0</span></div>
+            <div class="subState">Deploy protective walking robots.</div>
+            <button id="buildBarracksBtn">Build Barracks</button>
+          </div>
+        </aside>
+      </div>
     </section>
   </main>
 

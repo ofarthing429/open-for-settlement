@@ -27,6 +27,39 @@ const tabletPanel = document.getElementById('tabletPanel');
 const tabletTitle = document.getElementById('tabletTitle');
 const tabletBody = document.getElementById('tabletBody');
 const closeTabletBtn = document.getElementById('closeTabletBtn');
+const colonizePrompt = document.getElementById('colonizePrompt');
+const colonizeText = document.getElementById('colonizeText');
+const colonizeYesBtn = document.getElementById('colonizeYesBtn');
+const colonizeNoBtn = document.getElementById('colonizeNoBtn');
+const manageColonyBtn = document.getElementById('manageColonyBtn');
+const colonyMapPanel = document.getElementById('colonyMapPanel');
+const regionGrid = document.getElementById('regionGrid');
+const cancelColonizeBtn = document.getElementById('cancelColonizeBtn');
+const colonyPanel = document.getElementById('colonyPanel');
+const colonyRegionValue = document.getElementById('colonyRegionValue');
+const colonyCycleValue = document.getElementById('colonyCycleValue');
+const colonyFoodValue = document.getElementById('colonyFoodValue');
+const colonySuppliesValue = document.getElementById('colonySuppliesValue');
+const colonyPlutoniumValue = document.getElementById('colonyPlutoniumValue');
+const colonyPowerValue = document.getElementById('colonyPowerValue');
+const colonyStabilityValue = document.getElementById('colonyStabilityValue');
+const colonyDefenseValue = document.getElementById('colonyDefenseValue');
+const colonyRegionFlavor = document.getElementById('colonyRegionFlavor');
+const advanceColonyBtn = document.getElementById('advanceColonyBtn');
+const backToSetupBtn = document.getElementById('backToSetupBtn');
+const colonyLog = document.getElementById('colonyLog');
+const farmCount = document.getElementById('farmCount');
+const powerPlantCount = document.getElementById('powerPlantCount');
+const mineCount = document.getElementById('mineCount');
+const factoryCount = document.getElementById('factoryCount');
+const storageHouseCount = document.getElementById('storageHouseCount');
+const barracksCount = document.getElementById('barracksCount');
+const buildFarmBtn = document.getElementById('buildFarmBtn');
+const buildPowerPlantBtn = document.getElementById('buildPowerPlantBtn');
+const buildMineBtn = document.getElementById('buildMineBtn');
+const buildFactoryBtn = document.getElementById('buildFactoryBtn');
+const buildStorageBtn = document.getElementById('buildStorageBtn');
+const buildBarracksBtn = document.getElementById('buildBarracksBtn');
 
 const turnValue = document.getElementById('turnValue');
 const foodValue = document.getElementById('foodValue');
@@ -65,6 +98,75 @@ const RECORD_WINS_STORAGE_KEY = 'black-sand-colony-run-record-wins';
 const RECORD_BEST_POINTS_STORAGE_KEY = 'black-sand-colony-run-record-best-points';
 const RECORD_BEST_TURNS_STORAGE_KEY = 'black-sand-colony-run-record-best-turns';
 const TABLET_STORAGE_KEY = 'black-sand-colony-run-tablets';
+const COLONY_STORAGE_KEY = 'black-sand-colony-run-colony';
+const COLONIZE_DELAY_STORAGE_KEY = 'black-sand-colony-run-colonize-delay';
+
+const REGION_DATA = {
+  forest: {
+    id: 'forest',
+    name: 'Glowcore Forest',
+    summary: 'Food is abundant, but the coral never stops growing around the colony lanes.',
+    mapText: 'Glowcore Forest: abundant food, constant coral pressure.',
+    foodMult: 1.65,
+    mineMult: 0.9,
+    factoryMult: 1,
+    supplyUpkeep: 2,
+    cyclePoints: 6,
+  },
+  flats: {
+    id: 'flats',
+    name: 'Plutonium Flats',
+    summary: 'Mines are amazing here, but every deep tremor feels like wormsign.',
+    mapText: 'Plutonium Flats: rich fuel seams, permanent worm risk.',
+    foodMult: 0.8,
+    mineMult: 1.9,
+    factoryMult: 1.05,
+    supplyUpkeep: 1,
+    cyclePoints: 8,
+  },
+  mergi: {
+    id: 'mergi',
+    name: 'Mergi Wastes',
+    summary: 'Nothing good lives here. Sinking sand and Nibbloraxes own the place.',
+    mapText: 'Mergi Wastes: the cursed sink basin from the Terrarex tablet.',
+    foodMult: 0.55,
+    mineMult: 0.75,
+    factoryMult: 0.9,
+    supplyUpkeep: 8,
+    cyclePoints: 4,
+  },
+  capital: {
+    id: 'capital',
+    name: 'Native Capital',
+    summary: 'Best place to trade. The natives will barter for nearly anything.',
+    mapText: 'Native Capital: easiest trading network on Kharox.',
+    foodMult: 1,
+    mineMult: 0.85,
+    factoryMult: 1.1,
+    supplyUpkeep: 1,
+    cyclePoints: 12,
+  },
+  sinking: {
+    id: 'sinking',
+    name: 'Sinking Fields',
+    summary: 'The ground never wants to hold. Stabilization eats supplies every cycle.',
+    mapText: 'Sinking Fields: flat land, unstable footing, endless reinforcement.',
+    foodMult: 0.95,
+    mineMult: 1,
+    factoryMult: 1,
+    supplyUpkeep: 6,
+    cyclePoints: 7,
+  },
+};
+
+const BUILDING_DATA = {
+  farms: { label: 'Farm', suppliesCost: 35 },
+  powerPlants: { label: 'Power Plant', suppliesCost: 45 },
+  mines: { label: 'Mine', suppliesCost: 0 },
+  factories: { label: 'Factory', suppliesCost: 40 },
+  storageHouses: { label: 'Storage House', suppliesCost: 30 },
+  barracks: { label: 'Barracks', suppliesCost: 50 },
+};
 
 const TABLETS = {
   terrarex: {
@@ -113,6 +215,8 @@ const state = {
   traderSellOffers: [],
   traderOpen: false,
   tabletOpen: false,
+  colonizeDelayTarget: 0,
+  colony: null,
   lore: {
     terrarex: false,
   },
@@ -148,12 +252,17 @@ restartBtn.addEventListener('click', () => {
   titlePanel.classList.remove('hidden');
   setupPanel.classList.add('hidden');
   gamePanel.classList.add('hidden');
+  colonyMapPanel.classList.add('hidden');
+  colonyPanel.classList.add('hidden');
   nativeTraderPanel.classList.add('hidden');
   tabletPanel.classList.add('hidden');
   state.traderOpen = false;
   state.tabletOpen = false;
+  state.colonizeDelayTarget = loadColonizeDelay();
+  state.colony = loadStoredColony();
   syncRecordsUi();
   syncLoreUi();
+  syncColonizeUi();
 });
 repairBtn.addEventListener('click', useRepairKit);
 sprayBtn.addEventListener('click', useSpray);
@@ -170,6 +279,18 @@ buyInvestorBtn.addEventListener('click', () => buyItem('investor'));
 declineTraderBtn.addEventListener('click', closeNativeTrader);
 readTabletBtn.addEventListener('click', () => openTabletReader('terrarex'));
 closeTabletBtn.addEventListener('click', closeTabletReader);
+colonizeYesBtn.addEventListener('click', openColonyMap);
+colonizeNoBtn.addEventListener('click', delayColonizationPrompt);
+manageColonyBtn.addEventListener('click', showColonyPanel);
+cancelColonizeBtn.addEventListener('click', showSetup);
+advanceColonyBtn.addEventListener('click', advanceColonyCycle);
+backToSetupBtn.addEventListener('click', showSetup);
+buildFarmBtn.addEventListener('click', () => buildColonyBuilding('farms'));
+buildPowerPlantBtn.addEventListener('click', () => buildColonyBuilding('powerPlants'));
+buildMineBtn.addEventListener('click', () => buildColonyBuilding('mines'));
+buildFactoryBtn.addEventListener('click', () => buildColonyBuilding('factories'));
+buildStorageBtn.addEventListener('click', () => buildColonyBuilding('storageHouses'));
+buildBarracksBtn.addEventListener('click', () => buildColonyBuilding('barracks'));
 
 function startGame() {
   const chosenFood = Number(foodInput.value);
@@ -184,6 +305,8 @@ function startGame() {
   state.investorOwned = loadStoredInvestor();
   state.records = loadStoredRecords();
   state.lore = loadStoredTablets();
+  state.colonizeDelayTarget = loadColonizeDelay();
+  state.colony = loadStoredColony();
   state.hp = state.maxHp;
   state.turnsToWin = randInt(15, 50);
   state.trackLength = state.turnsToWin + 2;
@@ -216,6 +339,8 @@ function startGame() {
   titlePanel.classList.add('hidden');
   setupPanel.classList.add('hidden');
   gamePanel.classList.remove('hidden');
+  colonyMapPanel.classList.add('hidden');
+  colonyPanel.classList.add('hidden');
   nativeTraderPanel.classList.add('hidden');
   tabletPanel.classList.add('hidden');
   nextTurnBtn.disabled = false;
@@ -228,13 +353,24 @@ function startGame() {
   syncInventoryUi();
   syncRecordsUi();
   syncLoreUi();
+  syncColonizeUi();
   draw();
 }
 
 function showSetup() {
   titlePanel.classList.add('hidden');
+  colonyMapPanel.classList.add('hidden');
+  colonyPanel.classList.add('hidden');
+  gamePanel.classList.add('hidden');
+  nativeTraderPanel.classList.add('hidden');
+  tabletPanel.classList.add('hidden');
   setupPanel.classList.remove('hidden');
+  state.points = loadStoredPoints();
+  state.colonizeDelayTarget = loadColonizeDelay();
+  state.colony = loadStoredColony();
   syncRecordsUi();
+  syncLoreUi();
+  syncColonizeUi();
 }
 
 function advanceTurn() {
@@ -665,6 +801,418 @@ function closeTabletReader() {
     nextTurnBtn.disabled = false;
   }
   syncInventoryUi();
+}
+
+function syncColonizeUi() {
+  const points = loadStoredPoints();
+  state.points = points;
+  const colony = state.colony;
+  const hasColony = Boolean(colony && colony.active);
+  const deferred = state.colonizeDelayTarget === 2000 && points < 2000;
+
+  colonizePrompt.classList.remove('hidden');
+  colonizeYesBtn.classList.add('hidden');
+  colonizeNoBtn.classList.add('hidden');
+  manageColonyBtn.classList.add('hidden');
+
+  if (hasColony) {
+    colonizeText.textContent = `Colony established in ${REGION_DATA[colony.region].name}. You can manage it from here.`;
+    manageColonyBtn.classList.remove('hidden');
+    return;
+  }
+
+  if (points < 1000) {
+    colonizeText.textContent = `Reach 1000 points to unlock colonization. Current points: ${points}.`;
+    return;
+  }
+
+  if (deferred) {
+    colonizeText.textContent = `Colonization is on hold until you reach 2000 points. Current points: ${points}.`;
+    return;
+  }
+
+  if (points >= 1000 && points < 2000) {
+    colonizeText.textContent = 'You have gained the opportunity to colonize. Would you like to colonize or wait until 2000 points?';
+  } else {
+    colonizeText.textContent = 'You have 2000 or more points. Colonization command is cleared for launch.';
+  }
+
+  colonizeYesBtn.classList.remove('hidden');
+  colonizeNoBtn.classList.remove('hidden');
+}
+
+function delayColonizationPrompt() {
+  state.colonizeDelayTarget = 2000;
+  storeColonizeDelay();
+  syncColonizeUi();
+}
+
+function openColonyMap() {
+  state.points = loadStoredPoints();
+  if (state.points < 1000) {
+    return;
+  }
+
+  titlePanel.classList.add('hidden');
+  setupPanel.classList.add('hidden');
+  gamePanel.classList.add('hidden');
+  colonyPanel.classList.add('hidden');
+  nativeTraderPanel.classList.add('hidden');
+  tabletPanel.classList.add('hidden');
+  colonyMapPanel.classList.remove('hidden');
+  renderRegionGrid();
+}
+
+function renderRegionGrid() {
+  regionGrid.innerHTML = '';
+
+  for (const region of Object.values(REGION_DATA)) {
+    const card = document.createElement('article');
+    card.className = 'regionCard';
+
+    const heading = document.createElement('h2');
+    heading.textContent = region.name;
+    card.appendChild(heading);
+
+    const summary = document.createElement('p');
+    summary.textContent = region.summary;
+    card.appendChild(summary);
+
+    const detail = document.createElement('div');
+    detail.className = 'subState';
+    detail.textContent = region.mapText;
+    card.appendChild(detail);
+
+    const button = document.createElement('button');
+    button.textContent = `Colonize ${region.name}`;
+    button.addEventListener('click', () => startColony(region.id));
+    card.appendChild(button);
+
+    regionGrid.appendChild(card);
+  }
+}
+
+function startColony(regionId) {
+  const region = REGION_DATA[regionId];
+  if (!region) {
+    return;
+  }
+
+  state.colony = {
+    active: true,
+    region: regionId,
+    cycle: 0,
+    food: 140,
+    supplies: 150,
+    plutonium: 18,
+    power: 0,
+    stability: 100,
+    buildings: {
+      farms: 1,
+      powerPlants: 1,
+      mines: 1,
+      factories: 0,
+      storageHouses: 1,
+      barracks: 0,
+    },
+    log: [
+      { text: `Colony ship touched down in ${region.name}.`, tone: 'good' },
+      { text: region.summary, tone: '' },
+    ],
+  };
+  state.colonizeDelayTarget = 0;
+  storeColonizeDelay();
+  storeColony();
+  syncColonizeUi();
+  showColonyPanel();
+}
+
+function showColonyPanel() {
+  state.colony = loadStoredColony();
+  if (!state.colony || !state.colony.active) {
+    syncColonizeUi();
+    showSetup();
+    return;
+  }
+
+  titlePanel.classList.add('hidden');
+  setupPanel.classList.add('hidden');
+  gamePanel.classList.add('hidden');
+  colonyMapPanel.classList.add('hidden');
+  nativeTraderPanel.classList.add('hidden');
+  tabletPanel.classList.add('hidden');
+  colonyPanel.classList.remove('hidden');
+  syncColonyUi();
+}
+
+function loadStoredColony() {
+  try {
+    const raw = window.localStorage.getItem(COLONY_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed || parsed.active !== true || !REGION_DATA[parsed.region]) {
+      return null;
+    }
+    parsed.log = Array.isArray(parsed.log)
+      ? parsed.log.map((entry) => (typeof entry === 'string' ? { text: entry, tone: '' } : entry))
+      : [];
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function storeColony() {
+  try {
+    if (!state.colony) {
+      window.localStorage.removeItem(COLONY_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(COLONY_STORAGE_KEY, JSON.stringify(state.colony));
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function loadColonizeDelay() {
+  try {
+    const raw = Number(window.localStorage.getItem(COLONIZE_DELAY_STORAGE_KEY));
+    return raw === 2000 ? 2000 : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function storeColonizeDelay() {
+  try {
+    window.localStorage.setItem(COLONIZE_DELAY_STORAGE_KEY, String(state.colonizeDelayTarget || 0));
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function getColonyCaps(colony = state.colony) {
+  const storage = colony.buildings.storageHouses;
+  return {
+    food: 180 + storage * 120,
+    supplies: 180 + storage * 100,
+    plutonium: 60 + storage * 70,
+  };
+}
+
+function addColonyLog(text, tone = '') {
+  if (!state.colony) {
+    return;
+  }
+  state.colony.log.unshift({ text, tone });
+  state.colony.log = state.colony.log.slice(0, 18);
+}
+
+function syncColonyUi() {
+  if (!state.colony || !state.colony.active) {
+    return;
+  }
+
+  const region = REGION_DATA[state.colony.region];
+  const caps = getColonyCaps();
+  const defense = state.colony.buildings.barracks * 2;
+
+  colonyRegionValue.textContent = region.name;
+  colonyCycleValue.textContent = String(state.colony.cycle);
+  colonyFoodValue.textContent = `${state.colony.food}/${caps.food}`;
+  colonySuppliesValue.textContent = `${state.colony.supplies}/${caps.supplies}`;
+  colonyPlutoniumValue.textContent = `${state.colony.plutonium}/${caps.plutonium}`;
+  colonyPowerValue.textContent = String(state.colony.power);
+  colonyStabilityValue.textContent = `${state.colony.stability}%`;
+  colonyDefenseValue.textContent = String(defense);
+  colonyRegionFlavor.textContent = region.mapText;
+  colonyRegionFlavor.style.color = region.id === 'capital' ? '#afffa7' : '#f0e1b5';
+
+  farmCount.textContent = String(state.colony.buildings.farms);
+  powerPlantCount.textContent = String(state.colony.buildings.powerPlants);
+  mineCount.textContent = String(state.colony.buildings.mines);
+  factoryCount.textContent = String(state.colony.buildings.factories);
+  storageHouseCount.textContent = String(state.colony.buildings.storageHouses);
+  barracksCount.textContent = String(state.colony.buildings.barracks);
+
+  colonyLog.innerHTML = '';
+  for (const entry of state.colony.log) {
+    const p = document.createElement('p');
+    p.className = `logEntry ${entry.tone || ''}`.trim();
+    p.textContent = entry.text;
+    colonyLog.appendChild(p);
+  }
+
+  buildFarmBtn.disabled = state.colony.supplies < BUILDING_DATA.farms.suppliesCost;
+  buildPowerPlantBtn.disabled = state.colony.supplies < BUILDING_DATA.powerPlants.suppliesCost;
+  buildMineBtn.disabled = false;
+  buildFactoryBtn.disabled = state.colony.supplies < BUILDING_DATA.factories.suppliesCost;
+  buildStorageBtn.disabled = state.colony.supplies < BUILDING_DATA.storageHouses.suppliesCost;
+  buildBarracksBtn.disabled = state.colony.supplies < BUILDING_DATA.barracks.suppliesCost;
+}
+
+function buildColonyBuilding(kind) {
+  if (!state.colony || !state.colony.active) {
+    return;
+  }
+
+  const rules = BUILDING_DATA[kind];
+  if (!rules) {
+    return;
+  }
+
+  if (state.colony.supplies < rules.suppliesCost) {
+    addColonyLog(`Not enough supplies to build ${rules.label}.`, 'bad');
+    syncColonyUi();
+    return;
+  }
+
+  state.colony.supplies -= rules.suppliesCost;
+  state.colony.buildings[kind] += 1;
+  addColonyLog(`${rules.label} completed.`, 'good');
+  storeColony();
+  syncColonyUi();
+}
+
+function advanceColonyCycle() {
+  if (!state.colony || !state.colony.active) {
+    return;
+  }
+
+  const colony = state.colony;
+  const region = REGION_DATA[colony.region];
+  colony.cycle += 1;
+
+  const mineOutput = Math.round(colony.buildings.mines * 8 * region.mineMult);
+  colony.plutonium += mineOutput;
+  addColonyLog(`Mines brought in ${mineOutput} plutonium.`, 'good');
+
+  const plutoniumForPower = Math.min(colony.buildings.powerPlants * 2, colony.plutonium);
+  colony.plutonium -= plutoniumForPower;
+  const powerProduced = plutoniumForPower * 10;
+  colony.power = powerProduced;
+
+  const passiveDemand = 2 + colony.buildings.storageHouses * 2;
+  const farmDemand = colony.buildings.farms * 4;
+  const factoryDemand = colony.buildings.factories * 6;
+  const barracksDemand = colony.buildings.barracks * 5;
+  const demand = passiveDemand + farmDemand + factoryDemand + barracksDemand;
+  const powerRatio = demand > 0 ? Math.min(1, powerProduced / demand) : 1;
+
+  if (powerRatio < 1) {
+    const loss = Math.max(3, Math.ceil((1 - powerRatio) * 10));
+    colony.stability = Math.max(0, colony.stability - loss);
+    addColonyLog(`Power shortage hit the colony. Stability -${loss}.`, 'bad');
+  }
+
+  const foodProduced = Math.round(colony.buildings.farms * 18 * region.foodMult * powerRatio);
+  const suppliesProduced = Math.round(colony.buildings.factories * 10 * region.factoryMult * powerRatio);
+  colony.food += foodProduced;
+  colony.supplies += suppliesProduced;
+  if (foodProduced > 0) {
+    addColonyLog(`Farms produced ${foodProduced} food.`, 'good');
+  }
+  if (suppliesProduced > 0) {
+    addColonyLog(`Factories produced ${suppliesProduced} building supplies.`, 'good');
+  }
+
+  const foodUse = 14 + colony.buildings.farms * 2 + colony.buildings.factories * 2 + colony.buildings.barracks * 3;
+  colony.food -= foodUse;
+  colony.supplies -= region.supplyUpkeep;
+  addColonyLog(`Colony upkeep consumed ${foodUse} food and ${region.supplyUpkeep} supplies.`);
+
+  resolveRegionCycleEvents(region);
+
+  const caps = getColonyCaps(colony);
+  colony.food = Math.min(caps.food, colony.food);
+  colony.supplies = Math.min(caps.supplies, colony.supplies);
+  colony.plutonium = Math.min(caps.plutonium, colony.plutonium);
+
+  if (colony.food < 0) {
+    colony.stability = Math.max(0, colony.stability - 18);
+    addColonyLog('Food collapsed below zero. Colonists started ration panic.', 'bad');
+    colony.food = 0;
+  }
+
+  if (colony.supplies < 0) {
+    colony.stability = Math.max(0, colony.stability - 10);
+    addColonyLog('Building supplies ran dry. Infrastructure is slipping.', 'bad');
+    colony.supplies = 0;
+  }
+
+  if (colony.stability <= 0) {
+    colony.stability = 0;
+    addColonyLog('Colony stability has broken. Rebuilding this settlement will take another campaign.', 'bad');
+  }
+
+  state.points += region.cyclePoints;
+  storePoints();
+  syncHud();
+  storeColony();
+  syncColonizeUi();
+  syncColonyUi();
+}
+
+function resolveRegionCycleEvents(region) {
+  const colony = state.colony;
+  const defense = colony.buildings.barracks * 2;
+
+  if (region.id === 'forest' && Math.random() < 0.38) {
+    const loss = randInt(8, 16);
+    colony.supplies = Math.max(0, colony.supplies - loss);
+    addColonyLog(`Glowcore coral overgrowth chewed through ${loss} supplies.`, 'bad');
+  }
+
+  if (region.id === 'flats' && Math.random() < 0.26) {
+    if (defense > 0 && Math.random() < 0.7) {
+      colony.stability = Math.max(0, colony.stability - 4);
+      addColonyLog('Barracks robots drove off wormsign before the flats broke open.', 'good');
+    } else {
+      colony.stability = Math.max(0, colony.stability - 20);
+      destroyRandomColonyBuilding();
+      addColonyLog('A worm surfaced near the mines and smashed part of the colony.', 'bad');
+    }
+  }
+
+  if (region.id === 'mergi') {
+    const sinkLoss = randInt(10, 18);
+    colony.supplies = Math.max(0, colony.supplies - sinkLoss);
+    colony.stability = Math.max(0, colony.stability - 6);
+    addColonyLog(`Mergi ground reinforcement ate ${sinkLoss} supplies.`, 'bad');
+    if (Math.random() < 0.4) {
+      const foodLoss = randInt(20, 45);
+      colony.food = Math.max(0, colony.food - foodLoss);
+      addColonyLog(`Nibbloraxes stripped ${foodLoss} food from the depots.`, 'bad');
+    }
+  }
+
+  if (region.id === 'capital' && Math.random() < 0.55) {
+    const gain = randInt(12, 26);
+    colony.supplies += gain;
+    state.points += 18;
+    storePoints();
+    addColonyLog(`Native trade caravans delivered ${gain} supplies and 18 points.`, 'good');
+  }
+
+  if (region.id === 'sinking' && Math.random() < 0.34) {
+    const supplyLoss = randInt(8, 14);
+    colony.supplies = Math.max(0, colony.supplies - supplyLoss);
+    colony.stability = Math.max(0, colony.stability - 8);
+    addColonyLog(`Sinking field supports failed. ${supplyLoss} supplies were spent to stabilize them.`, 'bad');
+  }
+}
+
+function destroyRandomColonyBuilding() {
+  const options = Object.entries(state.colony.buildings)
+    .filter(([key, count]) => count > 0 && key !== 'storageHouses');
+  if (options.length === 0) {
+    return;
+  }
+  const [kind] = options[randInt(0, options.length - 1)];
+  state.colony.buildings[kind] -= 1;
+  addColonyLog(`${BUILDING_DATA[kind].label} lost.`, 'bad');
 }
 
 function renderNativeOffers() {
@@ -1896,6 +2444,8 @@ state.maxHp = loadStoredMaxHp();
 state.investorOwned = loadStoredInvestor();
 state.records = loadStoredRecords();
 state.lore = loadStoredTablets();
+state.colonizeDelayTarget = loadColonizeDelay();
+state.colony = loadStoredColony();
 state.hp = state.maxHp;
 state.turnsToWin = 20;
 state.trackLength = 22;
@@ -1903,4 +2453,5 @@ syncInventoryUi();
 syncHud();
 syncRecordsUi();
 syncLoreUi();
+syncColonizeUi();
 draw();
