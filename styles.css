@@ -605,8 +605,8 @@ button:disabled {
   bottom: 34px;
   height: 190px;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
   align-items: end;
   pointer-events: none;
 }
@@ -687,6 +687,15 @@ button:disabled {
     linear-gradient(180deg, #93a7c7 0 26%, transparent 26% 100%),
     linear-gradient(180deg, #4f5669 0 100%);
   border: 2px solid #34394a;
+}
+
+.buildSprite.businessHouses {
+  width: 22px;
+  height: 24px;
+  background:
+    linear-gradient(180deg, #c2f2ff 0 18%, transparent 18% 100%),
+    linear-gradient(180deg, #4f7f8f 0 100%);
+  border: 2px solid #325665;
 }
 
 .buildSprite.storageHouses {

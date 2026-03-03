@@ -58,12 +58,14 @@ const farmCount = document.getElementById('farmCount');
 const powerPlantCount = document.getElementById('powerPlantCount');
 const mineCount = document.getElementById('mineCount');
 const factoryCount = document.getElementById('factoryCount');
+const businessHouseCount = document.getElementById('businessHouseCount');
 const storageHouseCount = document.getElementById('storageHouseCount');
 const barracksCount = document.getElementById('barracksCount');
 const buildFarmBtn = document.getElementById('buildFarmBtn');
 const buildPowerPlantBtn = document.getElementById('buildPowerPlantBtn');
 const buildMineBtn = document.getElementById('buildMineBtn');
 const buildFactoryBtn = document.getElementById('buildFactoryBtn');
+const buildBusinessHouseBtn = document.getElementById('buildBusinessHouseBtn');
 const buildStorageBtn = document.getElementById('buildStorageBtn');
 const buildBarracksBtn = document.getElementById('buildBarracksBtn');
 
@@ -159,6 +161,7 @@ const BUILDING_DATA = {
   powerPlants: { label: 'Power Plant', suppliesCost: 45 },
   mines: { label: 'Mine', suppliesCost: 0 },
   factories: { label: 'Factory', suppliesCost: 40 },
+  businessHouses: { label: 'Business House', suppliesCost: 45 },
   storageHouses: { label: 'Storage House', suppliesCost: 30 },
   barracks: { label: 'Barracks', suppliesCost: 50 },
 };
@@ -953,6 +956,7 @@ function startColony(regionId) {
       powerPlants: 1,
       mines: 1,
       factories: 0,
+      businessHouses: 0,
       storageHouses: 1,
       barracks: 0,
     },
@@ -1000,6 +1004,7 @@ function loadStoredColony() {
       return null;
     }
     parsed.powerDemand = Number.isFinite(parsed.powerDemand) ? parsed.powerDemand : 0;
+    parsed.buildings.businessHouses = Number.isFinite(parsed.buildings.businessHouses) ? parsed.buildings.businessHouses : 0;
     parsed.territory = Array.isArray(parsed.territory) && parsed.territory.length > 0
       ? parsed.territory
       : [{ x: 6, y: 6 }];
@@ -1086,6 +1091,7 @@ function syncColonyUi() {
   powerPlantCount.textContent = String(state.colony.buildings.powerPlants);
   mineCount.textContent = String(state.colony.buildings.mines);
   factoryCount.textContent = String(state.colony.buildings.factories);
+  businessHouseCount.textContent = String(state.colony.buildings.businessHouses);
   storageHouseCount.textContent = String(state.colony.buildings.storageHouses);
   barracksCount.textContent = String(state.colony.buildings.barracks);
 
@@ -1101,6 +1107,7 @@ function syncColonyUi() {
   buildPowerPlantBtn.disabled = state.colony.supplies < BUILDING_DATA.powerPlants.suppliesCost;
   buildMineBtn.disabled = false;
   buildFactoryBtn.disabled = state.colony.supplies < BUILDING_DATA.factories.suppliesCost;
+  buildBusinessHouseBtn.disabled = state.colony.supplies < BUILDING_DATA.businessHouses.suppliesCost;
   buildStorageBtn.disabled = state.colony.supplies < BUILDING_DATA.storageHouses.suppliesCost;
   buildBarracksBtn.disabled = state.colony.supplies < BUILDING_DATA.barracks.suppliesCost;
 }
@@ -1116,6 +1123,7 @@ function syncColonyBuildViz() {
     ['powerPlants', 'Power'],
     ['mines', 'Mines'],
     ['factories', 'Factory'],
+    ['businessHouses', 'Business'],
     ['storageHouses', 'Storage'],
     ['barracks', 'Barracks'],
   ];
@@ -1380,7 +1388,12 @@ function advanceColonyCycle() {
   const region = REGION_DATA[colony.region];
   const cycleIssues = [];
   colony.cycle += 1;
-  expandColonyTerritory();
+  const expansionSteps = 1 + colony.buildings.businessHouses;
+  for (let i = 0; i < expansionSteps; i += 1) {
+    if (!expandColonyTerritory()) {
+      break;
+    }
+  }
 
   const mineOutput = Math.round(colony.buildings.mines * 8 * region.mineMult);
   colony.plutonium += mineOutput;
