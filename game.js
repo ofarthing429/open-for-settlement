@@ -42,6 +42,7 @@ const colonyFoodValue = document.getElementById('colonyFoodValue');
 const colonySuppliesValue = document.getElementById('colonySuppliesValue');
 const colonyPlutoniumValue = document.getElementById('colonyPlutoniumValue');
 const colonyPowerValue = document.getElementById('colonyPowerValue');
+const colonyPowerDemandValue = document.getElementById('colonyPowerDemandValue');
 const colonyStabilityValue = document.getElementById('colonyStabilityValue');
 const colonyDefenseValue = document.getElementById('colonyDefenseValue');
 const colonyRegionFlavor = document.getElementById('colonyRegionFlavor');
@@ -926,6 +927,7 @@ function startColony(regionId) {
     supplies: 150,
     plutonium: 18,
     power: 0,
+    powerDemand: 0,
     stability: 100,
     buildings: {
       farms: 1,
@@ -935,6 +937,7 @@ function startColony(regionId) {
       storageHouses: 1,
       barracks: 0,
     },
+    lastInstabilityCauses: [],
     log: [
       { text: `Colony ship touched down in ${region.name}.`, tone: 'good' },
       { text: region.summary, tone: '' },
@@ -975,6 +978,8 @@ function loadStoredColony() {
     if (!parsed || parsed.active !== true || !REGION_DATA[parsed.region]) {
       return null;
     }
+    parsed.powerDemand = Number.isFinite(parsed.powerDemand) ? parsed.powerDemand : 0;
+    parsed.lastInstabilityCauses = Array.isArray(parsed.lastInstabilityCauses) ? parsed.lastInstabilityCauses : [];
     parsed.log = Array.isArray(parsed.log)
       ? parsed.log.map((entry) => (typeof entry === 'string' ? { text: entry, tone: '' } : entry))
       : [];
@@ -1045,6 +1050,7 @@ function syncColonyUi() {
   colonySuppliesValue.textContent = `${state.colony.supplies}/${caps.supplies}`;
   colonyPlutoniumValue.textContent = `${state.colony.plutonium}/${caps.plutonium}`;
   colonyPowerValue.textContent = String(state.colony.power);
+  colonyPowerDemandValue.textContent = String(state.colony.powerDemand || 0);
   colonyStabilityValue.textContent = `${state.colony.stability}%`;
   colonyDefenseValue.textContent = String(defense);
   colonyRegionFlavor.textContent = region.mapText;
@@ -1153,6 +1159,7 @@ function advanceColonyCycle() {
 
   const colony = state.colony;
   const region = REGION_DATA[colony.region];
+  const cycleIssues = [];
   colony.cycle += 1;
 
   const mineOutput = Math.round(colony.buildings.mines * 8 * region.mineMult);
@@ -1169,12 +1176,14 @@ function advanceColonyCycle() {
   const factoryDemand = colony.buildings.factories * 6;
   const barracksDemand = colony.buildings.barracks * 5;
   const demand = passiveDemand + farmDemand + factoryDemand + barracksDemand;
+  colony.powerDemand = demand;
   const powerRatio = demand > 0 ? Math.min(1, powerProduced / demand) : 1;
 
   if (powerRatio < 1) {
     const loss = Math.max(3, Math.ceil((1 - powerRatio) * 10));
     colony.stability = Math.max(0, colony.stability - loss);
     addColonyLog(`Power shortage hit the colony. Stability -${loss}.`, 'bad');
+    cycleIssues.push('power shortage');
   }
 
   const foodProduced = Math.round(colony.buildings.farms * 18 * region.foodMult * powerRatio);
@@ -1193,7 +1202,7 @@ function advanceColonyCycle() {
   colony.supplies -= region.supplyUpkeep;
   addColonyLog(`Colony upkeep consumed ${foodUse} food and ${region.supplyUpkeep} supplies.`);
 
-  resolveRegionCycleEvents(region);
+  resolveRegionCycleEvents(region, cycleIssues);
 
   const caps = getColonyCaps(colony);
   colony.food = Math.min(caps.food, colony.food);
@@ -1204,12 +1213,19 @@ function advanceColonyCycle() {
     colony.stability = Math.max(0, colony.stability - 18);
     addColonyLog('Food collapsed below zero. Colonists started ration panic.', 'bad');
     colony.food = 0;
+    cycleIssues.push('food shortage');
   }
 
   if (colony.supplies < 0) {
     colony.stability = Math.max(0, colony.stability - 10);
     addColonyLog('Building supplies ran dry. Infrastructure is slipping.', 'bad');
     colony.supplies = 0;
+    cycleIssues.push('supply shortage');
+  }
+
+  const recovered = recoverColonyStability(cycleIssues);
+  if (recovered > 0) {
+    addColonyLog(`Stability recovered by ${recovered}. The colony is settling down.`, 'good');
   }
 
   if (colony.stability <= 0) {
@@ -1219,13 +1235,14 @@ function advanceColonyCycle() {
 
   state.points += region.cyclePoints;
   storePoints();
+  colony.lastInstabilityCauses = cycleIssues;
   syncHud();
   storeColony();
   syncColonizeUi();
   syncColonyUi();
 }
 
-function resolveRegionCycleEvents(region) {
+function resolveRegionCycleEvents(region, cycleIssues) {
   const colony = state.colony;
   const defense = colony.buildings.barracks * 2;
 
@@ -1233,16 +1250,19 @@ function resolveRegionCycleEvents(region) {
     const loss = randInt(8, 16);
     colony.supplies = Math.max(0, colony.supplies - loss);
     addColonyLog(`Glowcore coral overgrowth chewed through ${loss} supplies.`, 'bad');
+    cycleIssues.push('coral overgrowth');
   }
 
   if (region.id === 'flats' && Math.random() < 0.26) {
     if (defense > 0 && Math.random() < 0.7) {
       colony.stability = Math.max(0, colony.stability - 4);
       addColonyLog('Barracks robots drove off wormsign before the flats broke open.', 'good');
+      cycleIssues.push('worm pressure');
     } else {
       colony.stability = Math.max(0, colony.stability - 20);
       destroyRandomColonyBuilding();
       addColonyLog('A worm surfaced near the mines and smashed part of the colony.', 'bad');
+      cycleIssues.push('worm attack');
     }
   }
 
@@ -1251,15 +1271,18 @@ function resolveRegionCycleEvents(region) {
     colony.supplies = Math.max(0, colony.supplies - sinkLoss);
     colony.stability = Math.max(0, colony.stability - 6);
     addColonyLog(`Mergi ground reinforcement ate ${sinkLoss} supplies.`, 'bad');
+    cycleIssues.push('unstable ground');
     if (Math.random() < 0.4) {
       const foodLoss = randInt(20, 45);
       colony.food = Math.max(0, colony.food - foodLoss);
       addColonyLog(`Nibbloraxes stripped ${foodLoss} food from the depots.`, 'bad');
+      cycleIssues.push('Nibblorax infestation');
     }
     const supplyLoss = randInt(8, 14);
     colony.supplies = Math.max(0, colony.supplies - supplyLoss);
     colony.stability = Math.max(0, colony.stability - 8);
     addColonyLog(`Sinking field supports failed. ${supplyLoss} more supplies were spent to stabilize them.`, 'bad');
+    cycleIssues.push('sinking field collapse');
   }
 
   if (region.id === 'capital' && Math.random() < 0.55) {
@@ -1269,6 +1292,33 @@ function resolveRegionCycleEvents(region) {
     storePoints();
     addColonyLog(`Native trade caravans delivered ${gain} supplies and 18 points.`, 'good');
   }
+}
+
+function recoverColonyStability(cycleIssues) {
+  const colony = state.colony;
+  if (!colony || colony.stability >= 100) {
+    return 0;
+  }
+
+  const activeProblems = cycleIssues.length;
+  const hadProblemsBefore = Array.isArray(colony.lastInstabilityCauses) && colony.lastInstabilityCauses.length > 0;
+  const foodSafe = colony.food > 20;
+  const supplySafe = colony.supplies > 20;
+  const powerSafe = colony.power > 0;
+
+  if (activeProblems === 0 && foodSafe && supplySafe && powerSafe) {
+    const gain = hadProblemsBefore ? 6 : 3;
+    colony.stability = Math.min(100, colony.stability + gain);
+    return gain;
+  }
+
+  if (activeProblems <= 1 && foodSafe && supplySafe && powerSafe) {
+    const gain = 2;
+    colony.stability = Math.min(100, colony.stability + gain);
+    return gain;
+  }
+
+  return 0;
 }
 
 function destroyRandomColonyBuilding() {
