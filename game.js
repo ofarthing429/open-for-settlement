@@ -45,6 +45,7 @@ const colonyPowerValue = document.getElementById('colonyPowerValue');
 const colonyStabilityValue = document.getElementById('colonyStabilityValue');
 const colonyDefenseValue = document.getElementById('colonyDefenseValue');
 const colonyRegionFlavor = document.getElementById('colonyRegionFlavor');
+const colonyBuildViz = document.getElementById('colonyBuildViz');
 const advanceColonyBtn = document.getElementById('advanceColonyBtn');
 const backToSetupBtn = document.getElementById('backToSetupBtn');
 const colonyLog = document.getElementById('colonyLog');
@@ -1054,6 +1055,7 @@ function syncColonyUi() {
   colonyDefenseValue.textContent = String(defense);
   colonyRegionFlavor.textContent = region.mapText;
   colonyRegionFlavor.style.color = region.id === 'capital' ? '#afffa7' : '#f0e1b5';
+  syncColonyBuildViz();
 
   farmCount.textContent = String(state.colony.buildings.farms);
   powerPlantCount.textContent = String(state.colony.buildings.powerPlants);
@@ -1076,6 +1078,55 @@ function syncColonyUi() {
   buildFactoryBtn.disabled = state.colony.supplies < BUILDING_DATA.factories.suppliesCost;
   buildStorageBtn.disabled = state.colony.supplies < BUILDING_DATA.storageHouses.suppliesCost;
   buildBarracksBtn.disabled = state.colony.supplies < BUILDING_DATA.barracks.suppliesCost;
+}
+
+function syncColonyBuildViz() {
+  if (!state.colony) {
+    colonyBuildViz.innerHTML = '';
+    return;
+  }
+
+  const order = [
+    ['farms', 'Farms'],
+    ['powerPlants', 'Power'],
+    ['mines', 'Mines'],
+    ['factories', 'Factory'],
+    ['storageHouses', 'Storage'],
+    ['barracks', 'Barracks'],
+  ];
+
+  colonyBuildViz.innerHTML = '';
+
+  for (const [key, label] of order) {
+    const column = document.createElement('div');
+    column.className = 'buildColumn';
+
+    const stack = document.createElement('div');
+    stack.className = 'buildStack';
+    const count = state.colony.buildings[key];
+    const visibleCount = Math.min(count, 8);
+
+    for (let i = 0; i < visibleCount; i += 1) {
+      const sprite = document.createElement('div');
+      sprite.className = `buildSprite ${key}`;
+      stack.appendChild(sprite);
+    }
+
+    if (count > visibleCount) {
+      const extra = document.createElement('div');
+      extra.className = 'buildLabel';
+      extra.textContent = `+${count - visibleCount}`;
+      stack.appendChild(extra);
+    }
+
+    const caption = document.createElement('div');
+    caption.className = 'buildLabel';
+    caption.textContent = `${label} ${count}`;
+
+    column.appendChild(stack);
+    column.appendChild(caption);
+    colonyBuildViz.appendChild(column);
+  }
 }
 
 function buildColonyBuilding(kind) {

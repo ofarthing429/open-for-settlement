@@ -554,17 +554,127 @@ button:disabled {
   border: 2px solid rgba(213, 185, 113, 0.22);
 }
 
+.colonyBuildViz {
+  position: absolute;
+  left: 86px;
+  right: 92px;
+  bottom: 34px;
+  height: 190px;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+  pointer-events: none;
+}
+
+.buildColumn {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  min-height: 100%;
+}
+
+.buildLabel {
+  margin-top: 6px;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  color: #d4c89f;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.buildStack {
+  min-height: 148px;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 4px;
+}
+
+.buildSprite {
+  image-rendering: pixelated;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+}
+
+.buildSprite.farms {
+  width: 22px;
+  height: 18px;
+  background:
+    linear-gradient(180deg, #8eff96 0 30%, transparent 30% 100%),
+    linear-gradient(90deg, #4b6734 0 28%, #79c55b 28% 72%, #4b6734 72% 100%);
+  border: 2px solid #31502b;
+}
+
+.buildSprite.powerPlants {
+  width: 24px;
+  height: 28px;
+  background:
+    linear-gradient(180deg, #83d7ff 0 18%, transparent 18% 100%),
+    linear-gradient(180deg, #6a6f84 0 100%);
+  border: 2px solid #3f4455;
+  position: relative;
+}
+
+.buildSprite.powerPlants::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: -7px;
+  width: 4px;
+  height: 10px;
+  background: #8fe9ff;
+  box-shadow: -6px 4px 0 #8fe9ff, 6px 4px 0 #8fe9ff;
+}
+
+.buildSprite.mines {
+  width: 26px;
+  height: 16px;
+  background:
+    linear-gradient(180deg, #d4b56b 0 28%, transparent 28% 100%),
+    linear-gradient(180deg, #534026 0 100%);
+  border: 2px solid #3a2915;
+}
+
+.buildSprite.factories {
+  width: 26px;
+  height: 24px;
+  background:
+    linear-gradient(180deg, #93a7c7 0 26%, transparent 26% 100%),
+    linear-gradient(180deg, #4f5669 0 100%);
+  border: 2px solid #34394a;
+}
+
+.buildSprite.storageHouses {
+  width: 24px;
+  height: 20px;
+  background:
+    linear-gradient(180deg, #e6d089 0 22%, transparent 22% 100%),
+    linear-gradient(180deg, #6f5c34 0 100%);
+  border: 2px solid #4c3d22;
+}
+
+.buildSprite.barracks {
+  width: 24px;
+  height: 22px;
+  background:
+    linear-gradient(180deg, #ff8d8d 0 18%, transparent 18% 100%),
+    linear-gradient(180deg, #5b4f57 0 100%);
+  border: 2px solid #40363d;
+}
+
 .colonyRegionFlavor {
   position: absolute;
-  inset: 0;
+  inset: 0 0 auto 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 26px;
+  padding: 20px 26px 0;
   color: #f0e1b5;
-  font-size: 1.15rem;
+  font-size: 1rem;
   text-align: center;
   text-shadow: 0 3px 12px rgba(0, 0, 0, 0.65);
+  pointer-events: none;
 }
 
 canvas {
@@ -654,6 +764,18 @@ canvas {
   .colonyMapLayout,
   .colonyLayout {
     grid-template-columns: 1fr;
+  }
+
+  .colonyBuildViz {
+    left: 28px;
+    right: 28px;
+    bottom: 22px;
+    height: 170px;
+    gap: 6px;
+  }
+
+  .buildLabel {
+    font-size: 0.58rem;
   }
 
   .regionCard {
