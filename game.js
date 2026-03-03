@@ -868,10 +868,44 @@ function openColonyMap() {
 
 function renderRegionGrid() {
   regionGrid.innerHTML = '';
+  const mapBackdrop = document.createElement('div');
+  mapBackdrop.className = 'regionWater';
+  regionGrid.appendChild(mapBackdrop);
+
+  const landmass = document.createElement('div');
+  landmass.className = 'regionLandmass';
+  regionGrid.appendChild(landmass);
+
+  const positions = {
+    forest: { card: 'top-left', biome: 'forest', line: { x1: 210, y1: 120, x2: 330, y2: 165 } },
+    flats: { card: 'top-right', biome: 'flats', line: { x1: 640, y1: 120, x2: 555, y2: 165 } },
+    capital: { card: 'mid-right', biome: 'capital', line: { x1: 638, y1: 255, x2: 530, y2: 255 } },
+    sinking: { card: 'bottom-left', biome: 'sinking', line: { x1: 214, y1: 440, x2: 310, y2: 360 } },
+    mergi: { card: 'bottom-center', biome: 'mergi', line: { x1: 410, y1: 440, x2: 430, y2: 350 } },
+  };
+
+  for (const key of Object.keys(positions)) {
+    const biome = document.createElement('div');
+    biome.className = `regionBiome ${positions[key].biome}`;
+    regionGrid.appendChild(biome);
+
+    const line = document.createElement('div');
+    line.className = 'regionLine';
+    const { x1, y1, x2, y2 } = positions[key].line;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const length = Math.sqrt((dx * dx) + (dy * dy));
+    const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+    line.style.left = `${x1}px`;
+    line.style.top = `${y1}px`;
+    line.style.width = `${length}px`;
+    line.style.transform = `rotate(${angle}deg)`;
+    regionGrid.appendChild(line);
+  }
 
   for (const region of Object.values(REGION_DATA)) {
     const card = document.createElement('article');
-    card.className = 'regionCard';
+    card.className = `regionCard ${positions[region.id].card}`;
 
     const heading = document.createElement('h2');
     heading.textContent = region.name;
