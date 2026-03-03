@@ -1246,6 +1246,21 @@ function resolveRegionCycleEvents(region, cycleIssues) {
   const colony = state.colony;
   const defense = colony.buildings.barracks * 2;
 
+  if (region.id !== 'capital' && Math.random() < 0.28) {
+    const tribeTroops = randInt(0, Math.max(0, defense * 2));
+    if (tribeTroops > 0) {
+      if (defense >= tribeTroops) {
+        addColonyLog(`A roaming native tribe tested the perimeter with ${tribeTroops} troops. Barracks held them off.`, 'good');
+      } else {
+        const shortfall = tribeTroops - defense;
+        const loss = Math.max(4, shortfall * 2);
+        colony.stability = Math.max(0, colony.stability - loss);
+        addColonyLog(`A roaming native tribe attacked with ${tribeTroops} troops. Defense was short by ${shortfall}. Stability -${loss}.`, 'bad');
+        cycleIssues.push('tribal raid');
+      }
+    }
+  }
+
   if (region.id === 'forest' && Math.random() < 0.38) {
     const loss = randInt(8, 16);
     colony.supplies = Math.max(0, colony.supplies - loss);
