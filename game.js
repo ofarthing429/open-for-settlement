@@ -48,8 +48,12 @@ const colonyDefenseValue = document.getElementById('colonyDefenseValue');
 const colonyRegionFlavor = document.getElementById('colonyRegionFlavor');
 const colonyBuildViz = document.getElementById('colonyBuildViz');
 const advanceColonyBtn = document.getElementById('advanceColonyBtn');
+const openColonyMapBtn = document.getElementById('openColonyMapBtn');
 const backToSetupBtn = document.getElementById('backToSetupBtn');
 const colonyLog = document.getElementById('colonyLog');
+const colonyTerritoryPanel = document.getElementById('colonyTerritoryPanel');
+const territoryMap = document.getElementById('territoryMap');
+const closeColonyMapBtn = document.getElementById('closeColonyMapBtn');
 const farmCount = document.getElementById('farmCount');
 const powerPlantCount = document.getElementById('powerPlantCount');
 const mineCount = document.getElementById('mineCount');
@@ -206,6 +210,7 @@ const state = {
   traderSellOffers: [],
   traderOpen: false,
   tabletOpen: false,
+  colonyMapOpen: false,
   colonizeDelayTarget: 0,
   colony: null,
   lore: {
@@ -247,8 +252,10 @@ restartBtn.addEventListener('click', () => {
   colonyPanel.classList.add('hidden');
   nativeTraderPanel.classList.add('hidden');
   tabletPanel.classList.add('hidden');
+  colonyTerritoryPanel.classList.add('hidden');
   state.traderOpen = false;
   state.tabletOpen = false;
+  state.colonyMapOpen = false;
   state.colonizeDelayTarget = loadColonizeDelay();
   state.colony = loadStoredColony();
   syncRecordsUi();
@@ -275,7 +282,9 @@ colonizeNoBtn.addEventListener('click', delayColonizationPrompt);
 manageColonyBtn.addEventListener('click', showColonyPanel);
 cancelColonizeBtn.addEventListener('click', showSetup);
 advanceColonyBtn.addEventListener('click', advanceColonyCycle);
+openColonyMapBtn.addEventListener('click', openColonyTerritoryMap);
 backToSetupBtn.addEventListener('click', showSetup);
+closeColonyMapBtn.addEventListener('click', closeColonyTerritoryMap);
 
 function startGame() {
   const chosenFood = Number(foodInput.value);
@@ -320,6 +329,7 @@ function startGame() {
   state.traderSellOffers = [];
   state.traderOpen = false;
   state.tabletOpen = false;
+  state.colonyMapOpen = false;
 
   titlePanel.classList.add('hidden');
   setupPanel.classList.add('hidden');
@@ -328,6 +338,7 @@ function startGame() {
   colonyPanel.classList.add('hidden');
   nativeTraderPanel.classList.add('hidden');
   tabletPanel.classList.add('hidden');
+  colonyTerritoryPanel.classList.add('hidden');
   nextTurnBtn.disabled = false;
 
   log.innerHTML = '';
@@ -349,6 +360,7 @@ function showSetup() {
   gamePanel.classList.add('hidden');
   nativeTraderPanel.classList.add('hidden');
   tabletPanel.classList.add('hidden');
+  colonyTerritoryPanel.classList.add('hidden');
   setupPanel.classList.remove('hidden');
   state.points = loadStoredPoints();
   state.colonizeDelayTarget = loadColonizeDelay();
@@ -937,6 +949,7 @@ function startColony(regionId) {
       storageHouses: 1,
       barracks: 0,
     },
+    territory: [{ x: 6, y: 6 }],
     lastInstabilityCauses: [],
     log: [
       { text: `Colony ship touched down in ${region.name}.`, tone: 'good' },
@@ -979,6 +992,9 @@ function loadStoredColony() {
       return null;
     }
     parsed.powerDemand = Number.isFinite(parsed.powerDemand) ? parsed.powerDemand : 0;
+    parsed.territory = Array.isArray(parsed.territory) && parsed.territory.length > 0
+      ? parsed.territory
+      : [{ x: 6, y: 6 }];
     parsed.lastInstabilityCauses = Array.isArray(parsed.lastInstabilityCauses) ? parsed.lastInstabilityCauses : [];
     parsed.log = Array.isArray(parsed.log)
       ? parsed.log.map((entry) => (typeof entry === 'string' ? { text: entry, tone: '' } : entry))
@@ -1152,6 +1168,94 @@ function buildColonyBuilding(kind) {
   syncColonyUi();
 }
 
+function openColonyTerritoryMap() {
+  if (!state.colony || !state.colony.active) {
+    return;
+  }
+  state.colonyMapOpen = true;
+  colonyTerritoryPanel.classList.remove('hidden');
+  syncTerritoryMap();
+}
+
+function closeColonyTerritoryMap() {
+  state.colonyMapOpen = false;
+  colonyTerritoryPanel.classList.add('hidden');
+}
+
+function syncTerritoryMap() {
+  if (!state.colony) {
+    territoryMap.innerHTML = '';
+    return;
+  }
+
+  const regionMasks = {
+    forest: new Set(['2,2', '3,2', '4,2', '2,3', '3,3', '4,3', '3,4']),
+    flats: new Set(['8,2', '9,2', '10,2', '8,3', '9,3', '10,3', '9,4']),
+    capital: new Set(['8,5', '9,5', '10,5', '8,6', '9,6', '10,6', '9,7']),
+    mergi: new Set(['2,8', '3,8', '4,8', '5,8', '6,8', '3,9', '4,9', '5,9', '6,9', '4,10', '5,10', '6,10']),
+  };
+
+  const regionSet = regionMasks[state.colony.region] || new Set();
+  const claimed = new Set(state.colony.territory.map((tile) => `${tile.x},${tile.y}`));
+  territoryMap.innerHTML = '';
+
+  for (let y = 0; y < 13; y += 1) {
+    for (let x = 0; x < 13; x += 1) {
+      const cell = document.createElement('div');
+      cell.className = 'territoryCell';
+      const key = `${x},${y}`;
+      if (regionSet.has(key)) {
+        cell.classList.add('region');
+      }
+      if (claimed.has(key)) {
+        cell.classList.add('claimed');
+      }
+      if (x === 6 && y === 6) {
+        cell.classList.add('core');
+      }
+      territoryMap.appendChild(cell);
+    }
+  }
+}
+
+function expandColonyTerritory() {
+  if (!state.colony) {
+    return false;
+  }
+
+  const occupied = new Set(state.colony.territory.map((tile) => `${tile.x},${tile.y}`));
+  const candidates = [];
+  const deltas = [
+    { x: 1, y: 0 },
+    { x: -1, y: 0 },
+    { x: 0, y: 1 },
+    { x: 0, y: -1 },
+  ];
+
+  for (const tile of state.colony.territory) {
+    for (const delta of deltas) {
+      const nx = tile.x + delta.x;
+      const ny = tile.y + delta.y;
+      const key = `${nx},${ny}`;
+      if (nx < 0 || nx > 12 || ny < 0 || ny > 12 || occupied.has(key)) {
+        continue;
+      }
+      if (!candidates.some((item) => item.x === nx && item.y === ny)) {
+        candidates.push({ x: nx, y: ny });
+      }
+    }
+  }
+
+  if (candidates.length === 0) {
+    return false;
+  }
+
+  const chosen = candidates[randInt(0, candidates.length - 1)];
+  state.colony.territory.push(chosen);
+  addColonyLog(`Colony borders expanded to ${chosen.x},${chosen.y}.`, 'good');
+  return true;
+}
+
 function advanceColonyCycle() {
   if (!state.colony || !state.colony.active) {
     return;
@@ -1161,6 +1265,7 @@ function advanceColonyCycle() {
   const region = REGION_DATA[colony.region];
   const cycleIssues = [];
   colony.cycle += 1;
+  expandColonyTerritory();
 
   const mineOutput = Math.round(colony.buildings.mines * 8 * region.mineMult);
   colony.plutonium += mineOutput;
@@ -1240,6 +1345,9 @@ function advanceColonyCycle() {
   storeColony();
   syncColonizeUi();
   syncColonyUi();
+  if (state.colonyMapOpen) {
+    syncTerritoryMap();
+  }
 }
 
 function resolveRegionCycleEvents(region, cycleIssues) {

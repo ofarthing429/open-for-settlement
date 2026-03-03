@@ -235,6 +235,7 @@
 
           <footer class="controls">
             <button id="advanceColonyBtn">Advance Colony Cycle</button>
+            <button id="openColonyMapBtn">Map</button>
             <button id="backToSetupBtn">Back To Setup</button>
           </footer>
 
@@ -277,6 +278,15 @@
             <button id="buildBarracksBtn" type="button" onclick="window.buildColonyFromUi && window.buildColonyFromUi('barracks')">Build Barracks</button>
           </div>
         </aside>
+      </div>
+    </section>
+
+    <section id="colonyTerritoryPanel" class="traderPanel hidden">
+      <div class="traderCard tabletCard">
+        <h2>Colony Territory Map</h2>
+        <p class="traderIntro">Each cycle claims one touching square in a random direction.</p>
+        <div id="territoryMap" class="territoryMap"></div>
+        <button id="closeColonyMapBtn">Close Map</button>
       </div>
     </section>
   </main>

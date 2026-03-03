@@ -367,6 +367,38 @@ button:disabled {
   margin: 0 0 14px;
 }
 
+.territoryMap {
+  display: grid;
+  grid-template-columns: repeat(13, 22px);
+  gap: 3px;
+  justify-content: center;
+  padding: 14px;
+  margin: 0 0 14px;
+  background: linear-gradient(180deg, #141927 0%, #0c1018 100%);
+  border: 2px solid #3a4358;
+}
+
+.territoryCell {
+  width: 22px;
+  height: 22px;
+  border: 1px solid #2e3340;
+  background: #120f15;
+}
+
+.territoryCell.region {
+  background: #25242b;
+}
+
+.territoryCell.claimed {
+  background: linear-gradient(180deg, #a0f680 0%, #5fbe67 100%);
+  border-color: #d7f8b4;
+}
+
+.territoryCell.core {
+  background: linear-gradient(180deg, #ffe39a 0%, #c49b4a 100%);
+  border-color: #fff0bf;
+}
+
 .colonizeControls {
   margin-top: 10px;
   flex-wrap: wrap;
