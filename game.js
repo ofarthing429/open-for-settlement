@@ -275,12 +275,6 @@ manageColonyBtn.addEventListener('click', showColonyPanel);
 cancelColonizeBtn.addEventListener('click', showSetup);
 advanceColonyBtn.addEventListener('click', advanceColonyCycle);
 backToSetupBtn.addEventListener('click', showSetup);
-buildFarmBtn.addEventListener('click', () => buildColonyBuilding('farms'));
-buildPowerPlantBtn.addEventListener('click', () => buildColonyBuilding('powerPlants'));
-buildMineBtn.addEventListener('click', () => buildColonyBuilding('mines'));
-buildFactoryBtn.addEventListener('click', () => buildColonyBuilding('factories'));
-buildStorageBtn.addEventListener('click', () => buildColonyBuilding('storageHouses'));
-buildBarracksBtn.addEventListener('click', () => buildColonyBuilding('barracks'));
 
 function startGame() {
   const chosenFood = Number(foodInput.value);
