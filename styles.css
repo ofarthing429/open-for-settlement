@@ -394,6 +394,18 @@ button:disabled {
   border-color: #d7f8b4;
 }
 
+.territoryCell.copper {
+  box-shadow: inset 0 0 0 2px #d49b4d;
+}
+
+.territoryCell.hive {
+  box-shadow: inset 0 0 0 2px #ff6767;
+}
+
+.territoryCell.cleared {
+  box-shadow: inset 0 0 0 2px #84b9ff;
+}
+
 .territoryCell.core {
   background: linear-gradient(180deg, #ffe39a 0%, #c49b4a 100%);
   border-color: #fff0bf;

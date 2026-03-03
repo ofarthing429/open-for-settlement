@@ -163,6 +163,13 @@ const BUILDING_DATA = {
   barracks: { label: 'Barracks', suppliesCost: 50 },
 };
 
+const REGION_MASKS = {
+  forest: new Set(['2,2', '3,2', '4,2', '2,3', '3,3', '4,3', '3,4']),
+  flats: new Set(['8,2', '9,2', '10,2', '8,3', '9,3', '10,3', '9,4']),
+  capital: new Set(['8,5', '9,5', '10,5', '8,6', '9,6', '10,6', '9,7']),
+  mergi: new Set(['2,8', '3,8', '4,8', '5,8', '6,8', '3,9', '4,9', '5,9', '6,9', '4,10', '5,10', '6,10']),
+};
+
 const TABLETS = {
   terrarex: {
     title: 'Ancient Tablet: Terrarex',
@@ -950,6 +957,7 @@ function startColony(regionId) {
       barracks: 0,
     },
     territory: [{ x: 6, y: 6 }],
+    specialTiles: buildSpecialTilesForRegion(regionId),
     lastInstabilityCauses: [],
     log: [
       { text: `Colony ship touched down in ${region.name}.`, tone: 'good' },
@@ -995,6 +1003,7 @@ function loadStoredColony() {
     parsed.territory = Array.isArray(parsed.territory) && parsed.territory.length > 0
       ? parsed.territory
       : [{ x: 6, y: 6 }];
+    parsed.specialTiles = Array.isArray(parsed.specialTiles) ? parsed.specialTiles : buildSpecialTilesForRegion(parsed.region);
     parsed.lastInstabilityCauses = Array.isArray(parsed.lastInstabilityCauses) ? parsed.lastInstabilityCauses : [];
     parsed.log = Array.isArray(parsed.log)
       ? parsed.log.map((entry) => (typeof entry === 'string' ? { text: entry, tone: '' } : entry))
@@ -1188,15 +1197,9 @@ function syncTerritoryMap() {
     return;
   }
 
-  const regionMasks = {
-    forest: new Set(['2,2', '3,2', '4,2', '2,3', '3,3', '4,3', '3,4']),
-    flats: new Set(['8,2', '9,2', '10,2', '8,3', '9,3', '10,3', '9,4']),
-    capital: new Set(['8,5', '9,5', '10,5', '8,6', '9,6', '10,6', '9,7']),
-    mergi: new Set(['2,8', '3,8', '4,8', '5,8', '6,8', '3,9', '4,9', '5,9', '6,9', '4,10', '5,10', '6,10']),
-  };
-
-  const regionSet = regionMasks[state.colony.region] || new Set();
+  const regionSet = REGION_MASKS[state.colony.region] || new Set();
   const claimed = new Set(state.colony.territory.map((tile) => `${tile.x},${tile.y}`));
+  const specials = new Map((state.colony.specialTiles || []).map((tile) => [`${tile.x},${tile.y}`, tile]));
   territoryMap.innerHTML = '';
 
   for (let y = 0; y < 13; y += 1) {
@@ -1209,6 +1212,13 @@ function syncTerritoryMap() {
       }
       if (claimed.has(key)) {
         cell.classList.add('claimed');
+      }
+      const special = specials.get(key);
+      if (special) {
+        cell.classList.add(special.type === 'copper' ? 'copper' : 'hive');
+        if (special.cleared) {
+          cell.classList.add('cleared');
+        }
       }
       if (x === 6 && y === 6) {
         cell.classList.add('core');
@@ -1253,7 +1263,112 @@ function expandColonyTerritory() {
   const chosen = candidates[randInt(0, candidates.length - 1)];
   state.colony.territory.push(chosen);
   addColonyLog(`Colony borders expanded to ${chosen.x},${chosen.y}.`, 'good');
+  resolveTerritoryClaim(chosen);
   return true;
+}
+
+function buildSpecialTilesForRegion(regionId) {
+  const regionSet = REGION_MASKS[regionId];
+  if (!regionSet) {
+    return [];
+  }
+
+  const tiles = [...regionSet].map((key) => {
+    const [x, y] = key.split(',').map(Number);
+    return { x, y };
+  }).filter((tile) => !(tile.x === 6 && tile.y === 6));
+
+  const pick = (blocked = new Set()) => {
+    const pool = tiles.filter((tile) => !blocked.has(`${tile.x},${tile.y}`));
+    return pool.length > 0 ? pool[randInt(0, pool.length - 1)] : null;
+  };
+
+  const used = new Set();
+  const specials = [];
+
+  const copper = pick(used);
+  if (copper) {
+    specials.push({ x: copper.x, y: copper.y, type: 'copper', cleared: false, discovered: false });
+    used.add(`${copper.x},${copper.y}`);
+  }
+
+  const hiveStart = pick(used);
+  if (hiveStart) {
+    specials.push({ x: hiveStart.x, y: hiveStart.y, type: 'hive', cleared: false, discovered: false, bugsRemaining: 0 });
+    used.add(`${hiveStart.x},${hiveStart.y}`);
+
+    const hiveNeighbors = [
+      { x: hiveStart.x + 1, y: hiveStart.y },
+      { x: hiveStart.x - 1, y: hiveStart.y },
+      { x: hiveStart.x, y: hiveStart.y + 1 },
+      { x: hiveStart.x, y: hiveStart.y - 1 },
+    ].filter((tile) => regionSet.has(`${tile.x},${tile.y}`) && !used.has(`${tile.x},${tile.y}`));
+
+    if (hiveNeighbors.length > 0) {
+      const extra = hiveNeighbors[randInt(0, hiveNeighbors.length - 1)];
+      specials.push({ x: extra.x, y: extra.y, type: 'hive', cleared: false, discovered: false, bugsRemaining: 0 });
+    }
+  }
+
+  return specials;
+}
+
+function resolveTerritoryClaim(tile) {
+  if (!state.colony || !Array.isArray(state.colony.specialTiles)) {
+    return;
+  }
+
+  const matches = state.colony.specialTiles.filter((entry) => entry.x === tile.x && entry.y === tile.y && !entry.discovered);
+  for (const special of matches) {
+    special.discovered = true;
+    if (special.type === 'copper') {
+      state.colony.supplies += 35;
+      special.cleared = true;
+      addColonyLog(`Copper Cache uncovered at ${tile.x},${tile.y}. Supplies +35.`, 'good');
+    } else if (special.type === 'hive') {
+      const bugs = randInt(12, 32);
+      special.bugsRemaining = bugs;
+      addColonyLog(`Nibblorax Hive uncovered at ${tile.x},${tile.y}. ${bugs} bugs poured into the colony lanes.`, 'bad');
+    }
+  }
+}
+
+function resolveHiveInfestations(cycleIssues) {
+  if (!state.colony || !Array.isArray(state.colony.specialTiles)) {
+    return;
+  }
+
+  const defense = state.colony.buildings.barracks * 2;
+  const activeHives = state.colony.specialTiles.filter((tile) => tile.type === 'hive' && tile.discovered && !tile.cleared && tile.bugsRemaining > 0);
+  if (activeHives.length === 0) {
+    return;
+  }
+
+  let defenseRemaining = defense;
+  for (const hive of activeHives) {
+    if (defenseRemaining <= 0) {
+      break;
+    }
+    const cleared = Math.min(defenseRemaining, hive.bugsRemaining);
+    hive.bugsRemaining -= cleared;
+    defenseRemaining -= cleared;
+    addColonyLog(`Defense robots cleared ${cleared} Nibbloraxes from hive ${hive.x},${hive.y}.`, 'good');
+    if (hive.bugsRemaining <= 0) {
+      hive.cleared = true;
+      addColonyLog(`Nibblorax Hive at ${hive.x},${hive.y} has been cleared.`, 'good');
+    }
+  }
+
+  for (const hive of activeHives) {
+    if (hive.bugsRemaining > 0) {
+      const foodLoss = hive.bugsRemaining;
+      state.colony.food = Math.max(0, state.colony.food - foodLoss);
+      addColonyLog(`Hive ${hive.x},${hive.y} still has ${hive.bugsRemaining} Nibbloraxes. Food -${foodLoss}.`, 'bad');
+      if (!cycleIssues.includes('Nibblorax hive')) {
+        cycleIssues.push('Nibblorax hive');
+      }
+    }
+  }
 }
 
 function advanceColonyCycle() {
@@ -1307,6 +1422,7 @@ function advanceColonyCycle() {
   colony.supplies -= region.supplyUpkeep;
   addColonyLog(`Colony upkeep consumed ${foodUse} food and ${region.supplyUpkeep} supplies.`);
 
+  resolveHiveInfestations(cycleIssues);
   resolveRegionCycleEvents(region, cycleIssues);
 
   const caps = getColonyCaps(colony);
