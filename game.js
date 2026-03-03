@@ -1268,6 +1268,21 @@ function resolveRegionCycleEvents(region, cycleIssues) {
     cycleIssues.push('coral overgrowth');
   }
 
+  if ((region.id === 'forest' || region.id === 'capital') && Math.random() < 0.24) {
+    const coralAttack = randInt(0, Math.max(0, Math.floor(defense * 1.5)));
+    if (coralAttack > 0) {
+      if (defense >= coralAttack) {
+        addColonyLog(`A coral surge struck with ${coralAttack} force. Defensive walkers burned it back.`, 'good');
+      } else {
+        const shortfall = coralAttack - defense;
+        const loss = Math.max(8, shortfall * 4);
+        colony.food = Math.max(0, colony.food - loss);
+        addColonyLog(`Glowing coral attacked with ${coralAttack} force. Defense was short by ${shortfall}. Food -${loss}.`, 'bad');
+        cycleIssues.push('coral attack');
+      }
+    }
+  }
+
   if (region.id === 'flats' && Math.random() < 0.26) {
     if (defense > 0 && Math.random() < 0.7) {
       colony.stability = Math.max(0, colony.stability - 4);
