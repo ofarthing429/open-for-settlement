@@ -861,6 +861,7 @@ function openColonyMap() {
   tabletPanel.classList.add('hidden');
   colonyMapPanel.classList.remove('hidden');
   renderRegionGrid();
+  colonyMapPanel.scrollIntoView({ block: 'start' });
 }
 
 function renderRegionGrid() {
@@ -943,6 +944,7 @@ function showColonyPanel() {
   tabletPanel.classList.add('hidden');
   colonyPanel.classList.remove('hidden');
   syncColonyUi();
+  colonyPanel.scrollIntoView({ block: 'start' });
 }
 
 function loadStoredColony() {
