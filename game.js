@@ -818,16 +818,21 @@ function syncColonizeUi() {
   if (hasColony) {
     colonizeText.textContent = `Colony established in ${REGION_DATA[colony.region].name}. You can manage it from here.`;
     manageColonyBtn.classList.remove('hidden');
+    manageColonyBtn.disabled = false;
     return;
   }
 
   if (points < 1000) {
     colonizeText.textContent = `Reach 1000 points to unlock colonization. Current points: ${points}.`;
+    colonizeYesBtn.disabled = true;
+    colonizeNoBtn.disabled = true;
     return;
   }
 
   if (deferred) {
     colonizeText.textContent = `Colonization is on hold until you reach 2000 points. Current points: ${points}.`;
+    colonizeYesBtn.disabled = points < 2000;
+    colonizeNoBtn.disabled = false;
     return;
   }
 
@@ -839,6 +844,8 @@ function syncColonizeUi() {
 
   colonizeYesBtn.classList.remove('hidden');
   colonizeNoBtn.classList.remove('hidden');
+  colonizeYesBtn.disabled = false;
+  colonizeNoBtn.disabled = false;
 }
 
 function delayColonizationPrompt() {
@@ -848,11 +855,6 @@ function delayColonizationPrompt() {
 }
 
 function openColonyMap() {
-  state.points = loadStoredPoints();
-  if (state.points < 1000) {
-    return;
-  }
-
   titlePanel.classList.add('hidden');
   setupPanel.classList.add('hidden');
   gamePanel.classList.add('hidden');
@@ -931,7 +933,6 @@ function startColony(regionId) {
 function showColonyPanel() {
   state.colony = loadStoredColony();
   if (!state.colony || !state.colony.active) {
-    syncColonizeUi();
     showSetup();
     return;
   }
