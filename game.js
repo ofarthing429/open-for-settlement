@@ -1040,6 +1040,7 @@ function createColonyState(regionId, overrides = {}) {
       turnsLeft: 0,
       totalTurns: 0,
     },
+    techBoost: false,
     lastInstabilityCauses: [],
     log: [],
     ...overrides,
@@ -1131,6 +1132,7 @@ function loadStoredColony() {
     parsed.templeSearch.completed = Boolean(parsed.templeSearch.completed);
     parsed.templeSearch.turnsLeft = Number.isFinite(parsed.templeSearch.turnsLeft) ? parsed.templeSearch.turnsLeft : 0;
     parsed.templeSearch.totalTurns = Number.isFinite(parsed.templeSearch.totalTurns) ? parsed.templeSearch.totalTurns : 0;
+    parsed.techBoost = Boolean(parsed.techBoost);
     parsed.lastInstabilityCauses = Array.isArray(parsed.lastInstabilityCauses) ? parsed.lastInstabilityCauses : [];
     parsed.log = Array.isArray(parsed.log)
       ? parsed.log.map((entry) => (typeof entry === 'string' ? { text: entry, tone: '' } : entry))
