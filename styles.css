@@ -283,6 +283,17 @@ button:disabled {
   line-height: 1.35;
 }
 
+.explorerTargets {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.explorerTargets button {
+  width: 100%;
+}
+
 .traderPanel {
   position: fixed;
   inset: 0;

@@ -61,6 +61,9 @@ const factoryCount = document.getElementById('factoryCount');
 const businessHouseCount = document.getElementById('businessHouseCount');
 const storageHouseCount = document.getElementById('storageHouseCount');
 const barracksCount = document.getElementById('barracksCount');
+const explorerStatus = document.getElementById('explorerStatus');
+const explorerOutposts = document.getElementById('explorerOutposts');
+const explorerTargets = document.getElementById('explorerTargets');
 const buildFarmBtn = document.getElementById('buildFarmBtn');
 const buildPowerPlantBtn = document.getElementById('buildPowerPlantBtn');
 const buildMineBtn = document.getElementById('buildMineBtn');
@@ -171,6 +174,13 @@ const REGION_MASKS = {
   flats: new Set(['8,2', '9,2', '10,2', '8,3', '9,3', '10,3', '9,4']),
   capital: new Set(['8,5', '9,5', '10,5', '8,6', '9,6', '10,6', '9,7']),
   mergi: new Set(['2,8', '3,8', '4,8', '5,8', '6,8', '3,9', '4,9', '5,9', '6,9', '4,10', '5,10', '6,10']),
+};
+
+const REGION_TRAVEL_POINTS = {
+  forest: { x: 3, y: 3 },
+  flats: { x: 9, y: 3 },
+  capital: { x: 9, y: 6 },
+  mergi: { x: 5, y: 9 },
 };
 
 const TABLETS = {
@@ -941,7 +951,22 @@ function startColony(regionId) {
     return;
   }
 
-  state.colony = {
+  state.colony = createColonyState(regionId, {
+    supportColonies: [],
+    log: [
+      { text: `Colony ship touched down in ${region.name}.`, tone: 'good' },
+      { text: region.summary, tone: '' },
+    ],
+  });
+  state.colonizeDelayTarget = 0;
+  storeColonizeDelay();
+  storeColony();
+  syncColonizeUi();
+  showColonyPanel();
+}
+
+function createColonyState(regionId, overrides = {}) {
+  return {
     active: true,
     region: regionId,
     cycle: 0,
@@ -962,17 +987,18 @@ function startColony(regionId) {
     },
     territory: [{ x: 6, y: 6 }],
     specialTiles: buildSpecialTilesForRegion(regionId),
+    supportColonies: [],
+    explorer: {
+      unlocked: false,
+      traveling: false,
+      targetRegion: '',
+      totalTurns: 0,
+      turnsLeft: 0,
+    },
     lastInstabilityCauses: [],
-    log: [
-      { text: `Colony ship touched down in ${region.name}.`, tone: 'good' },
-      { text: region.summary, tone: '' },
-    ],
+    log: [],
+    ...overrides,
   };
-  state.colonizeDelayTarget = 0;
-  storeColonizeDelay();
-  storeColony();
-  syncColonizeUi();
-  showColonyPanel();
 }
 
 function showColonyPanel() {
@@ -1009,10 +1035,45 @@ function loadStoredColony() {
       ? parsed.territory
       : [{ x: 6, y: 6 }];
     parsed.specialTiles = Array.isArray(parsed.specialTiles) ? parsed.specialTiles : buildSpecialTilesForRegion(parsed.region);
+    parsed.supportColonies = Array.isArray(parsed.supportColonies)
+      ? parsed.supportColonies.filter((colony) => colony && REGION_DATA[colony.region])
+      : [];
+    if (!parsed.supportColonies.length && Array.isArray(parsed.outposts)) {
+      parsed.supportColonies = parsed.outposts
+        .filter((regionId) => REGION_DATA[regionId])
+        .map((regionId) => ({
+          region: regionId,
+          cycle: 0,
+          buildings: {
+            farms: 1,
+            powerPlants: 1,
+            mines: 1,
+            factories: 0,
+            businessHouses: 0,
+            storageHouses: 1,
+            barracks: 0,
+          },
+          territoryCount: 1,
+        }));
+    }
+    parsed.explorer = parsed.explorer && typeof parsed.explorer === 'object' ? parsed.explorer : {};
+    parsed.explorer.unlocked = Boolean(parsed.explorer.unlocked);
+    parsed.explorer.traveling = Boolean(parsed.explorer.traveling);
+    parsed.explorer.targetRegion = REGION_DATA[parsed.explorer.targetRegion] ? parsed.explorer.targetRegion : '';
+    parsed.explorer.totalTurns = Number.isFinite(parsed.explorer.totalTurns) ? parsed.explorer.totalTurns : 0;
+    parsed.explorer.turnsLeft = Number.isFinite(parsed.explorer.turnsLeft) ? parsed.explorer.turnsLeft : 0;
+    if (!parsed.explorer.targetRegion) {
+      parsed.explorer.traveling = false;
+      parsed.explorer.totalTurns = 0;
+      parsed.explorer.turnsLeft = 0;
+    }
     parsed.lastInstabilityCauses = Array.isArray(parsed.lastInstabilityCauses) ? parsed.lastInstabilityCauses : [];
     parsed.log = Array.isArray(parsed.log)
       ? parsed.log.map((entry) => (typeof entry === 'string' ? { text: entry, tone: '' } : entry))
       : [];
+    if (isRegionFullyClaimed(parsed)) {
+      parsed.explorer.unlocked = true;
+    }
     return parsed;
   } catch {
     return null;
@@ -1048,6 +1109,118 @@ function storeColonizeDelay() {
   }
 }
 
+function isRegionFullyClaimed(colony = state.colony) {
+  if (!colony || !REGION_MASKS[colony.region]) {
+    return false;
+  }
+  const claimed = new Set((colony.territory || []).map((tile) => `${tile.x},${tile.y}`));
+  for (const key of REGION_MASKS[colony.region]) {
+    if (!claimed.has(key)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function getExplorerTravelTurns(fromRegion, toRegion) {
+  const from = REGION_TRAVEL_POINTS[fromRegion];
+  const to = REGION_TRAVEL_POINTS[toRegion];
+  if (!from || !to) {
+    return 0;
+  }
+  const distance = Math.abs(from.x - to.x) + Math.abs(from.y - to.y);
+  return Math.max(2, Math.ceil(distance / 2));
+}
+
+function unlockExplorerIfReady() {
+  if (!state.colony || !state.colony.active || state.colony.explorer.unlocked) {
+    return;
+  }
+  if (isRegionFullyClaimed(state.colony)) {
+    state.colony.explorer.unlocked = true;
+    addColonyLog('All region squares claimed. The Explorer is unlocked and ready to range across Kharox.', 'good');
+  }
+}
+
+function sendExplorer(targetRegion) {
+  if (!state.colony || !state.colony.active || !REGION_DATA[targetRegion]) {
+    return;
+  }
+
+  const colony = state.colony;
+  if (!colony.explorer.unlocked || colony.explorer.traveling) {
+    return;
+  }
+  if (targetRegion === colony.region || colony.supportColonies.some((entry) => entry.region === targetRegion)) {
+    return;
+  }
+
+  const turns = getExplorerTravelTurns(colony.region, targetRegion);
+  colony.explorer.traveling = true;
+  colony.explorer.targetRegion = targetRegion;
+  colony.explorer.totalTurns = turns;
+  colony.explorer.turnsLeft = turns;
+  addColonyLog(`The Explorer set out for ${REGION_DATA[targetRegion].name}. Travel time: ${turns} cycles.`, 'good');
+  storeColony();
+  syncColonyUi();
+}
+
+function advanceExplorerProgress() {
+  if (!state.colony || !state.colony.active || !state.colony.explorer.traveling) {
+    return;
+  }
+
+  const explorer = state.colony.explorer;
+  explorer.turnsLeft = Math.max(0, explorer.turnsLeft - 1);
+  if (explorer.turnsLeft > 0) {
+    addColonyLog(`The Explorer is still crossing Kharox toward ${REGION_DATA[explorer.targetRegion].name}. ${explorer.turnsLeft} cycles remain.`, '');
+    return;
+  }
+
+  const targetRegion = explorer.targetRegion;
+  const oldColony = state.colony;
+  const supportSnapshot = {
+    region: oldColony.region,
+    cycle: oldColony.cycle,
+    buildings: { ...oldColony.buildings },
+    territoryCount: oldColony.territory.length,
+  };
+  const mergedSupportColonies = [
+    ...(oldColony.supportColonies || []),
+    supportSnapshot,
+  ];
+  state.colony = createColonyState(targetRegion, {
+    supportColonies: mergedSupportColonies,
+    log: [
+      { text: `The Explorer reached ${REGION_DATA[targetRegion].name} and founded a new colony from scratch.`, tone: 'good' },
+      { text: `Support convoys from ${REGION_DATA[supportSnapshot.region].name} are already on the way.`, tone: 'good' },
+      { text: REGION_DATA[targetRegion].summary, tone: '' },
+    ],
+  });
+}
+
+function applySupportColonyEffects() {
+  if (!state.colony || !state.colony.active || !Array.isArray(state.colony.supportColonies) || state.colony.supportColonies.length === 0) {
+    return;
+  }
+
+  for (const support of state.colony.supportColonies) {
+    support.cycle = (support.cycle || 0) + 1;
+    const buildings = support.buildings || {};
+    const territoryCount = support.territoryCount || 1;
+    const region = REGION_DATA[support.region];
+    const food = Math.max(0, Math.round(buildings.farms * 4 * region.foodMult + territoryCount * 0.5));
+    const supplies = Math.max(0, Math.round(buildings.factories * 4 * region.factoryMult + buildings.mines * 2 * region.mineMult));
+    const plutonium = Math.max(0, Math.round(buildings.mines * 3 * region.mineMult));
+    const points = support.region === 'capital' ? 4 : support.region === 'mergi' ? 2 : 1;
+    state.colony.food += food;
+    state.colony.supplies += supplies;
+    state.colony.plutonium += plutonium;
+    state.points += points;
+    addColonyLog(`${region.name} support colony shipped ${food} food, ${supplies} supplies, ${plutonium} plutonium, and ${points} points.`, 'good');
+  }
+}
+
 function getColonyCaps(colony = state.colony) {
   const storage = colony.buildings.storageHouses;
   return {
@@ -1073,6 +1246,8 @@ function syncColonyUi() {
   const region = REGION_DATA[state.colony.region];
   const caps = getColonyCaps();
   const defense = state.colony.buildings.barracks * 2;
+  const regionSquareCount = REGION_MASKS[state.colony.region] ? REGION_MASKS[state.colony.region].size : 0;
+  const regionFilled = isRegionFullyClaimed(state.colony);
 
   colonyRegionValue.textContent = region.name;
   colonyCycleValue.textContent = String(state.colony.cycle);
@@ -1094,6 +1269,43 @@ function syncColonyUi() {
   businessHouseCount.textContent = String(state.colony.buildings.businessHouses);
   storageHouseCount.textContent = String(state.colony.buildings.storageHouses);
   barracksCount.textContent = String(state.colony.buildings.barracks);
+
+  if (!state.colony.explorer.unlocked) {
+    explorerStatus.textContent = `Locked. Claim all ${regionSquareCount} region squares to unlock The Explorer.`;
+  } else if (state.colony.explorer.traveling) {
+    explorerStatus.textContent = `Traveling to ${REGION_DATA[state.colony.explorer.targetRegion].name}. ${state.colony.explorer.turnsLeft}/${state.colony.explorer.totalTurns} cycles left.`;
+  } else if (regionFilled) {
+    explorerStatus.textContent = 'Ready. Pick a new region and The Explorer will start the trip.';
+  } else {
+    explorerStatus.textContent = 'Unlocked, but the current region is no longer fully controlled.';
+  }
+
+  explorerOutposts.textContent = state.colony.supportColonies.length > 0
+    ? `Support Colonies: ${state.colony.supportColonies.map((entry) => REGION_DATA[entry.region].name).join(', ')}`
+    : 'Support Colonies: none';
+
+  explorerTargets.innerHTML = '';
+  if (state.colony.explorer.unlocked && !state.colony.explorer.traveling) {
+    const targets = Object.keys(REGION_DATA).filter((regionId) => (
+      regionId !== state.colony.region
+      && !state.colony.supportColonies.some((entry) => entry.region === regionId)
+    ));
+    if (targets.length === 0) {
+      const done = document.createElement('div');
+      done.className = 'subState';
+      done.textContent = 'All other regions already have support colonies.';
+      explorerTargets.appendChild(done);
+    } else {
+      for (const regionId of targets) {
+        const button = document.createElement('button');
+        const turns = getExplorerTravelTurns(state.colony.region, regionId);
+        button.type = 'button';
+        button.textContent = `Send to ${REGION_DATA[regionId].name} (${turns} cycles)`;
+        button.addEventListener('click', () => sendExplorer(regionId));
+        explorerTargets.appendChild(button);
+      }
+    }
+  }
 
   colonyLog.innerHTML = '';
   for (const entry of state.colony.log) {
@@ -1241,6 +1453,7 @@ function expandColonyTerritory() {
     return false;
   }
 
+  const regionSet = REGION_MASKS[state.colony.region];
   const occupied = new Set(state.colony.territory.map((tile) => `${tile.x},${tile.y}`));
   const candidates = [];
   const deltas = [
@@ -1256,6 +1469,9 @@ function expandColonyTerritory() {
       const ny = tile.y + delta.y;
       const key = `${nx},${ny}`;
       if (nx < 0 || nx > 12 || ny < 0 || ny > 12 || occupied.has(key)) {
+        continue;
+      }
+      if (regionSet && !regionSet.has(key)) {
         continue;
       }
       if (!candidates.some((item) => item.x === nx && item.y === ny)) {
@@ -1388,6 +1604,7 @@ function advanceColonyCycle() {
   const region = REGION_DATA[colony.region];
   const cycleIssues = [];
   colony.cycle += 1;
+  advanceExplorerProgress();
   const expansionSteps = 1 + colony.buildings.businessHouses;
   for (let i = 0; i < expansionSteps; i += 1) {
     if (!expandColonyTerritory()) {
@@ -1434,6 +1651,7 @@ function advanceColonyCycle() {
   if (suppliesProduced > 0) {
     addColonyLog(`Factories produced ${suppliesProduced} building supplies.`, 'good');
   }
+  applySupportColonyEffects();
 
   const territoryUse = colony.territory.length;
   const foodUse = 14 + colony.buildings.farms * 2 + colony.buildings.factories * 2 + colony.buildings.barracks * 3 + territoryUse;
@@ -1477,6 +1695,7 @@ function advanceColonyCycle() {
   state.points += region.cyclePoints;
   storePoints();
   colony.lastInstabilityCauses = cycleIssues;
+  unlockExplorerIfReady();
   syncHud();
   storeColony();
   syncColonizeUi();
