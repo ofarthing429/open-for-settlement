@@ -1503,6 +1503,27 @@ function expandColonyTerritory() {
   }
 
   if (candidates.length === 0) {
+    if (regionSet) {
+      const remaining = [...regionSet]
+        .filter((key) => !occupied.has(key))
+        .map((key) => {
+          const [x, y] = key.split(',').map(Number);
+          return { x, y };
+        });
+
+      if (remaining.length > 0) {
+        remaining.sort((a, b) => {
+          const distanceA = Math.min(...state.colony.territory.map((tile) => Math.abs(tile.x - a.x) + Math.abs(tile.y - a.y)));
+          const distanceB = Math.min(...state.colony.territory.map((tile) => Math.abs(tile.x - b.x) + Math.abs(tile.y - b.y)));
+          return distanceA - distanceB;
+        });
+        const chosen = remaining[0];
+        state.colony.territory.push(chosen);
+        addColonyLog(`Survey teams reconnected the colony frontier at ${chosen.x},${chosen.y}.`, 'good');
+        resolveTerritoryClaim(chosen);
+        return true;
+      }
+    }
     return false;
   }
 
