@@ -974,6 +974,12 @@ function storeRecords() {
     window.localStorage.setItem(RECORD_WINS_STORAGE_KEY, String(state.records.wins));
     window.localStorage.setItem(RECORD_BEST_POINTS_STORAGE_KEY, String(state.records.bestPoints));
     window.localStorage.setItem(RECORD_BEST_TURNS_STORAGE_KEY, String(state.records.bestTurns));
+    window.localStorage.setItem('black-sand-colony-run-records', JSON.stringify({
+      runs: state.records.runs,
+      wins: state.records.wins,
+      bestPoints: state.records.bestPoints,
+      bestTurns: state.records.bestTurns,
+    }));
   } catch {
     // Ignore storage failures and keep records in memory for the session.
   }
