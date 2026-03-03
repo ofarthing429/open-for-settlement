@@ -1396,8 +1396,13 @@ function advanceColonyCycle() {
   }
 
   const mineOutput = Math.round(colony.buildings.mines * 8 * region.mineMult);
+  const mineSuppliesProduced = Math.round(colony.buildings.mines * 2 * region.mineMult);
   colony.plutonium += mineOutput;
+  colony.supplies += mineSuppliesProduced;
   addColonyLog(`Mines brought in ${mineOutput} plutonium.`, 'good');
+  if (mineSuppliesProduced > 0) {
+    addColonyLog(`Mines also pulled up ${mineSuppliesProduced} building supplies.`, 'good');
+  }
 
   const plutoniumForPower = Math.min(colony.buildings.powerPlants * 2, colony.plutonium);
   colony.plutonium -= plutoniumForPower;
