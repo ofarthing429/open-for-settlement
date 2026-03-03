@@ -1430,10 +1430,12 @@ function advanceColonyCycle() {
     addColonyLog(`Factories produced ${suppliesProduced} building supplies.`, 'good');
   }
 
-  const foodUse = 14 + colony.buildings.farms * 2 + colony.buildings.factories * 2 + colony.buildings.barracks * 3;
+  const territoryUse = colony.territory.length;
+  const foodUse = 14 + colony.buildings.farms * 2 + colony.buildings.factories * 2 + colony.buildings.barracks * 3 + territoryUse;
+  const supplyUse = region.supplyUpkeep + territoryUse;
   colony.food -= foodUse;
-  colony.supplies -= region.supplyUpkeep;
-  addColonyLog(`Colony upkeep consumed ${foodUse} food and ${region.supplyUpkeep} supplies.`);
+  colony.supplies -= supplyUse;
+  addColonyLog(`Colony upkeep consumed ${foodUse} food and ${supplyUse} supplies. Territory: ${territoryUse} squares, +${territoryUse} food, +${territoryUse} supplies.`);
 
   resolveHiveInfestations(cycleIssues);
   resolveRegionCycleEvents(region, cycleIssues);
