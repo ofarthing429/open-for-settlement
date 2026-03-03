@@ -64,6 +64,10 @@ const barracksCount = document.getElementById('barracksCount');
 const explorerStatus = document.getElementById('explorerStatus');
 const explorerOutposts = document.getElementById('explorerOutposts');
 const explorerTargets = document.getElementById('explorerTargets');
+const templeSearchHeading = document.getElementById('templeSearchHeading');
+const templeSearchPanel = document.getElementById('templeSearchPanel');
+const templeSearchStatus = document.getElementById('templeSearchStatus');
+const startTempleSearchBtn = document.getElementById('startTempleSearchBtn');
 const buildFarmBtn = document.getElementById('buildFarmBtn');
 const buildPowerPlantBtn = document.getElementById('buildPowerPlantBtn');
 const buildMineBtn = document.getElementById('buildMineBtn');
@@ -305,6 +309,7 @@ advanceColonyBtn.addEventListener('click', advanceColonyCycle);
 openColonyMapBtn.addEventListener('click', openColonyTerritoryMap);
 backToSetupBtn.addEventListener('click', showSetup);
 closeColonyMapBtn.addEventListener('click', closeColonyTerritoryMap);
+startTempleSearchBtn.addEventListener('click', startTempleSearch);
 
 function startGame() {
   const chosenFood = Number(foodInput.value);
@@ -1005,6 +1010,12 @@ function createColonyState(regionId, overrides = {}) {
       totalTurns: 0,
       turnsLeft: 0,
     },
+    templeSearch: {
+      active: false,
+      completed: false,
+      turnsLeft: 0,
+      totalTurns: 0,
+    },
     lastInstabilityCauses: [],
     log: [],
     ...overrides,
@@ -1053,6 +1064,9 @@ function loadStoredColony() {
     if (!parsed.territory.some((tile) => tile.x === parsed.core.x && tile.y === parsed.core.y)) {
       parsed.territory.unshift(parsed.core);
     }
+    parsed.territory = parsed.territory.filter((tile, index, arr) => (
+      arr.findIndex((entry) => entry.x === tile.x && entry.y === tile.y) === index
+    ));
     parsed.specialTiles = Array.isArray(parsed.specialTiles)
       ? parsed.specialTiles
       : buildSpecialTilesForRegion(parsed.region, parsed.core);
@@ -1088,6 +1102,11 @@ function loadStoredColony() {
       parsed.explorer.totalTurns = 0;
       parsed.explorer.turnsLeft = 0;
     }
+    parsed.templeSearch = parsed.templeSearch && typeof parsed.templeSearch === 'object' ? parsed.templeSearch : {};
+    parsed.templeSearch.active = Boolean(parsed.templeSearch.active);
+    parsed.templeSearch.completed = Boolean(parsed.templeSearch.completed);
+    parsed.templeSearch.turnsLeft = Number.isFinite(parsed.templeSearch.turnsLeft) ? parsed.templeSearch.turnsLeft : 0;
+    parsed.templeSearch.totalTurns = Number.isFinite(parsed.templeSearch.totalTurns) ? parsed.templeSearch.totalTurns : 0;
     parsed.lastInstabilityCauses = Array.isArray(parsed.lastInstabilityCauses) ? parsed.lastInstabilityCauses : [];
     parsed.log = Array.isArray(parsed.log)
       ? parsed.log.map((entry) => (typeof entry === 'string' ? { text: entry, tone: '' } : entry))
@@ -1188,14 +1207,14 @@ function sendExplorer(targetRegion) {
 
 function advanceExplorerProgress() {
   if (!state.colony || !state.colony.active || !state.colony.explorer.traveling) {
-    return;
+    return false;
   }
 
   const explorer = state.colony.explorer;
   explorer.turnsLeft = Math.max(0, explorer.turnsLeft - 1);
   if (explorer.turnsLeft > 0) {
     addColonyLog(`The Explorer is still crossing Kharox toward ${REGION_DATA[explorer.targetRegion].name}. ${explorer.turnsLeft} cycles remain.`, '');
-    return;
+    return false;
   }
 
   const targetRegion = explorer.targetRegion;
@@ -1218,6 +1237,7 @@ function advanceExplorerProgress() {
       { text: REGION_DATA[targetRegion].summary, tone: '' },
     ],
   });
+  return true;
 }
 
 function applySupportColonyEffects() {
@@ -1240,6 +1260,63 @@ function applySupportColonyEffects() {
     state.points += points;
     addColonyLog(`${region.name} support colony shipped ${food} food, ${supplies} supplies, ${plutonium} plutonium, and ${points} points.`, 'good');
   }
+}
+
+function canSearchTemple(colony = state.colony) {
+  return Boolean(
+    colony
+    && colony.active
+    && colony.region === 'mergi'
+    && state.lore.terrarex === true
+  );
+}
+
+function startTempleSearch() {
+  if (!canSearchTemple()) {
+    return;
+  }
+
+  const colony = state.colony;
+  if (colony.templeSearch.completed || colony.templeSearch.active) {
+    return;
+  }
+  if (colony.supplies < 30) {
+    addColonyLog('Not enough supplies to start a coordinates search. Need 30 supplies.', 'bad');
+    syncColonyUi();
+    return;
+  }
+
+  colony.supplies -= 30;
+  colony.templeSearch.active = true;
+  colony.templeSearch.totalTurns = 4;
+  colony.templeSearch.turnsLeft = 4;
+  addColonyLog('Search teams descended into the Mergi Wastes using the Terrarex coordinates.', 'good');
+  storeColony();
+  syncColonyUi();
+}
+
+function advanceTempleSearch() {
+  if (!canSearchTemple() || !state.colony.templeSearch.active) {
+    return;
+  }
+
+  const search = state.colony.templeSearch;
+  search.turnsLeft = Math.max(0, search.turnsLeft - 1);
+
+  if (search.turnsLeft > 0) {
+    addColonyLog(`Temple search progress: ${search.turnsLeft} cycles remain before the teams reach the buried tunnel.`, '');
+    return;
+  }
+
+  search.active = false;
+  search.completed = true;
+  state.colony.food += 80;
+  state.colony.supplies += 120;
+  state.colony.plutonium += 40;
+  state.colony.stability = Math.min(100, state.colony.stability + 15);
+  state.points += 250;
+  addColonyLog('The Terrarex tunnel has been found. Ancient stockpiles and sealed reactors were recovered from beneath the Mergi Wastes.', 'good');
+  addColonyLog('Temple rewards: +80 food, +120 supplies, +40 plutonium, +15 stability, +250 points.', 'good');
 }
 
 function getColonyCaps(colony = state.colony) {
@@ -1325,6 +1402,25 @@ function syncColonyUi() {
         button.addEventListener('click', () => sendExplorer(regionId));
         explorerTargets.appendChild(button);
       }
+    }
+  }
+
+  const showTempleSearch = canSearchTemple(state.colony);
+  templeSearchHeading.classList.toggle('hidden', !showTempleSearch);
+  templeSearchPanel.classList.toggle('hidden', !showTempleSearch);
+  if (showTempleSearch) {
+    if (state.colony.templeSearch.completed) {
+      templeSearchStatus.textContent = 'The Terrarex tunnel has been located and stripped for supplies.';
+      startTempleSearchBtn.disabled = true;
+      startTempleSearchBtn.textContent = 'Temple Found';
+    } else if (state.colony.templeSearch.active) {
+      templeSearchStatus.textContent = `Search active. ${state.colony.templeSearch.turnsLeft}/${state.colony.templeSearch.totalTurns} cycles remain.`;
+      startTempleSearchBtn.disabled = true;
+      startTempleSearchBtn.textContent = 'Search Underway';
+    } else {
+      templeSearchStatus.textContent = 'The Terrarex tablet points to a buried tunnel beneath the Mergi Wastes.';
+      startTempleSearchBtn.disabled = state.colony.supplies < 30;
+      startTempleSearchBtn.textContent = 'Search Via Coords';
     }
   }
 
@@ -1643,11 +1739,25 @@ function advanceColonyCycle() {
     return;
   }
 
-  const colony = state.colony;
-  const region = REGION_DATA[colony.region];
+  let colony = state.colony;
+  let region = REGION_DATA[colony.region];
   const cycleIssues = [];
   colony.cycle += 1;
-  advanceExplorerProgress();
+  const explorerArrived = advanceExplorerProgress();
+  if (explorerArrived) {
+    state.points += region.cyclePoints;
+    storePoints();
+    syncHud();
+    storeColony();
+    syncColonizeUi();
+    syncColonyUi();
+    if (state.colonyMapOpen) {
+      syncTerritoryMap();
+    }
+    return;
+  }
+  colony = state.colony;
+  region = REGION_DATA[colony.region];
   const expansionSteps = 1 + colony.buildings.businessHouses;
   for (let i = 0; i < expansionSteps; i += 1) {
     if (!expandColonyTerritory()) {
@@ -1695,6 +1805,7 @@ function advanceColonyCycle() {
     addColonyLog(`Factories produced ${suppliesProduced} building supplies.`, 'good');
   }
   applySupportColonyEffects();
+  advanceTempleSearch();
 
   const territoryUse = colony.territory.length;
   const foodUse = 14 + colony.buildings.farms * 2 + colony.buildings.factories * 2 + colony.buildings.barracks * 3 + territoryUse;
