@@ -965,7 +965,16 @@ function startColony(regionId) {
   showColonyPanel();
 }
 
+function getRegionCoreTile(regionId) {
+  const tile = REGION_TRAVEL_POINTS[regionId];
+  if (tile) {
+    return { x: tile.x, y: tile.y };
+  }
+  return { x: 6, y: 6 };
+}
+
 function createColonyState(regionId, overrides = {}) {
+  const core = getRegionCoreTile(regionId);
   return {
     active: true,
     region: regionId,
@@ -985,8 +994,9 @@ function createColonyState(regionId, overrides = {}) {
       storageHouses: 1,
       barracks: 0,
     },
-    territory: [{ x: 6, y: 6 }],
-    specialTiles: buildSpecialTilesForRegion(regionId),
+    core,
+    territory: [core],
+    specialTiles: buildSpecialTilesForRegion(regionId, core),
     supportColonies: [],
     explorer: {
       unlocked: false,
@@ -1029,12 +1039,23 @@ function loadStoredColony() {
     if (!parsed || parsed.active !== true || !REGION_DATA[parsed.region]) {
       return null;
     }
+    const regionSet = REGION_MASKS[parsed.region] || new Set();
+    const defaultCore = getRegionCoreTile(parsed.region);
     parsed.powerDemand = Number.isFinite(parsed.powerDemand) ? parsed.powerDemand : 0;
     parsed.buildings.businessHouses = Number.isFinite(parsed.buildings.businessHouses) ? parsed.buildings.businessHouses : 0;
-    parsed.territory = Array.isArray(parsed.territory) && parsed.territory.length > 0
-      ? parsed.territory
-      : [{ x: 6, y: 6 }];
-    parsed.specialTiles = Array.isArray(parsed.specialTiles) ? parsed.specialTiles : buildSpecialTilesForRegion(parsed.region);
+    parsed.core = parsed.core && regionSet.has(`${parsed.core.x},${parsed.core.y}`)
+      ? parsed.core
+      : defaultCore;
+    const rawTerritory = Array.isArray(parsed.territory) && parsed.territory.length > 0
+      ? parsed.territory.filter((tile) => regionSet.has(`${tile.x},${tile.y}`))
+      : [];
+    parsed.territory = rawTerritory.length > 0 ? rawTerritory : [parsed.core];
+    if (!parsed.territory.some((tile) => tile.x === parsed.core.x && tile.y === parsed.core.y)) {
+      parsed.territory.unshift(parsed.core);
+    }
+    parsed.specialTiles = Array.isArray(parsed.specialTiles)
+      ? parsed.specialTiles
+      : buildSpecialTilesForRegion(parsed.region, parsed.core);
     parsed.supportColonies = Array.isArray(parsed.supportColonies)
       ? parsed.supportColonies.filter((colony) => colony && REGION_DATA[colony.region])
       : [];
@@ -1418,6 +1439,7 @@ function syncTerritoryMap() {
   }
 
   const regionSet = REGION_MASKS[state.colony.region] || new Set();
+  const core = state.colony.core || getRegionCoreTile(state.colony.region);
   const claimed = new Set(state.colony.territory.map((tile) => `${tile.x},${tile.y}`));
   const specials = new Map((state.colony.specialTiles || []).map((tile) => [`${tile.x},${tile.y}`, tile]));
   territoryMap.innerHTML = '';
@@ -1440,7 +1462,7 @@ function syncTerritoryMap() {
           cell.classList.add('cleared');
         }
       }
-      if (x === 6 && y === 6) {
+      if (x === core.x && y === core.y) {
         cell.classList.add('core');
       }
       territoryMap.appendChild(cell);
@@ -1491,7 +1513,7 @@ function expandColonyTerritory() {
   return true;
 }
 
-function buildSpecialTilesForRegion(regionId) {
+function buildSpecialTilesForRegion(regionId, core = getRegionCoreTile(regionId)) {
   const regionSet = REGION_MASKS[regionId];
   if (!regionSet) {
     return [];
@@ -1500,7 +1522,7 @@ function buildSpecialTilesForRegion(regionId) {
   const tiles = [...regionSet].map((key) => {
     const [x, y] = key.split(',').map(Number);
     return { x, y };
-  }).filter((tile) => !(tile.x === 6 && tile.y === 6));
+  }).filter((tile) => !(tile.x === core.x && tile.y === core.y));
 
   const pick = (blocked = new Set()) => {
     const pool = tiles.filter((tile) => !blocked.has(`${tile.x},${tile.y}`));
