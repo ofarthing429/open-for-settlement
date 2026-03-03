@@ -1477,9 +1477,13 @@ function endGame(message, cause = '') {
     state.deathMode = cause;
   }
   finalizeRun(cause === 'win');
+  state.points = loadStoredPoints();
+  state.colonizeDelayTarget = loadColonizeDelay();
+  state.colony = loadStoredColony();
   nextTurnBtn.disabled = true;
   setItemButtonsDisabled(true);
   addLog(message, message.includes('success') ? 'good' : 'bad');
+  syncColonizeUi();
 }
 
 function syncHud() {
@@ -1655,6 +1659,10 @@ function finalizeRun(won) {
   state.records.bestTurns = Math.max(state.records.bestTurns, state.turn);
   storeRecords();
   syncRecordsUi();
+  state.points = loadStoredPoints();
+  state.colonizeDelayTarget = loadColonizeDelay();
+  state.colony = loadStoredColony();
+  syncColonizeUi();
 }
 
 function syncRecordsUi() {
