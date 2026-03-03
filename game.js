@@ -935,27 +935,29 @@ function storeInvestor() {
 
 function loadStoredRecords() {
   try {
+    const perField = {
+      runs: readStoredNumber(RECORD_RUNS_STORAGE_KEY),
+      wins: readStoredNumber(RECORD_WINS_STORAGE_KEY),
+      bestPoints: readStoredNumber(RECORD_BEST_POINTS_STORAGE_KEY),
+      bestTurns: readStoredNumber(RECORD_BEST_TURNS_STORAGE_KEY),
+    };
+
     const legacyRaw = window.localStorage.getItem('black-sand-colony-run-records');
     if (legacyRaw) {
       try {
         const parsed = JSON.parse(legacyRaw);
         return {
-          runs: Number.isFinite(parsed.runs) ? Math.max(0, Math.floor(parsed.runs)) : 0,
-          wins: Number.isFinite(parsed.wins) ? Math.max(0, Math.floor(parsed.wins)) : 0,
-          bestPoints: Number.isFinite(parsed.bestPoints) ? Math.max(0, Math.floor(parsed.bestPoints)) : 0,
-          bestTurns: Number.isFinite(parsed.bestTurns) ? Math.max(0, Math.floor(parsed.bestTurns)) : 0,
+          runs: Math.max(Number.isFinite(parsed.runs) ? Math.max(0, Math.floor(parsed.runs)) : 0, perField.runs),
+          wins: Math.max(Number.isFinite(parsed.wins) ? Math.max(0, Math.floor(parsed.wins)) : 0, perField.wins),
+          bestPoints: Math.max(Number.isFinite(parsed.bestPoints) ? Math.max(0, Math.floor(parsed.bestPoints)) : 0, perField.bestPoints),
+          bestTurns: Math.max(Number.isFinite(parsed.bestTurns) ? Math.max(0, Math.floor(parsed.bestTurns)) : 0, perField.bestTurns),
         };
       } catch {
         // Fall through to per-field storage.
       }
     }
 
-    return {
-      runs: readStoredNumber(RECORD_RUNS_STORAGE_KEY),
-      wins: readStoredNumber(RECORD_WINS_STORAGE_KEY),
-      bestPoints: readStoredNumber(RECORD_BEST_POINTS_STORAGE_KEY),
-      bestTurns: readStoredNumber(RECORD_BEST_TURNS_STORAGE_KEY),
-    };
+    return perField;
   } catch {
     return {
       runs: 0,
