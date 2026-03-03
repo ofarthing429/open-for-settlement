@@ -26,6 +26,8 @@ const declineTraderBtn = document.getElementById('declineTraderBtn');
 const tabletPanel = document.getElementById('tabletPanel');
 const tabletTitle = document.getElementById('tabletTitle');
 const tabletBody = document.getElementById('tabletBody');
+const templeVision = document.getElementById('templeVision');
+const templeVisionText = document.getElementById('templeVisionText');
 const closeTabletBtn = document.getElementById('closeTabletBtn');
 const colonizePrompt = document.getElementById('colonizePrompt');
 const colonizeText = document.getElementById('colonizeText');
@@ -61,6 +63,7 @@ const factoryCount = document.getElementById('factoryCount');
 const businessHouseCount = document.getElementById('businessHouseCount');
 const storageHouseCount = document.getElementById('storageHouseCount');
 const barracksCount = document.getElementById('barracksCount');
+const groundAnchorCount = document.getElementById('groundAnchorCount');
 const explorerStatus = document.getElementById('explorerStatus');
 const explorerOutposts = document.getElementById('explorerOutposts');
 const explorerTargets = document.getElementById('explorerTargets');
@@ -70,6 +73,7 @@ const templeSearchHeading = document.getElementById('templeSearchHeading');
 const templeSearchPanel = document.getElementById('templeSearchPanel');
 const templeSearchStatus = document.getElementById('templeSearchStatus');
 const startTempleSearchBtn = document.getElementById('startTempleSearchBtn');
+const readWallRiddleBtn = document.getElementById('readWallRiddleBtn');
 const buildFarmBtn = document.getElementById('buildFarmBtn');
 const buildPowerPlantBtn = document.getElementById('buildPowerPlantBtn');
 const buildMineBtn = document.getElementById('buildMineBtn');
@@ -77,6 +81,7 @@ const buildFactoryBtn = document.getElementById('buildFactoryBtn');
 const buildBusinessHouseBtn = document.getElementById('buildBusinessHouseBtn');
 const buildStorageBtn = document.getElementById('buildStorageBtn');
 const buildBarracksBtn = document.getElementById('buildBarracksBtn');
+const buildGroundAnchorBtn = document.getElementById('buildGroundAnchorBtn');
 
 const turnValue = document.getElementById('turnValue');
 const foodValue = document.getElementById('foodValue');
@@ -173,6 +178,7 @@ const BUILDING_DATA = {
   businessHouses: { label: 'Business House', suppliesCost: 45 },
   storageHouses: { label: 'Storage House', suppliesCost: 30 },
   barracks: { label: 'Barracks', suppliesCost: 50 },
+  groundAnchors: { label: 'Ground Anchor', suppliesCost: 55 },
 };
 
 const REGION_MASKS = {
@@ -336,6 +342,7 @@ openColonyMapBtn.addEventListener('click', openColonyTerritoryMap);
 backToSetupBtn.addEventListener('click', showSetup);
 closeColonyMapBtn.addEventListener('click', closeColonyTerritoryMap);
 startTempleSearchBtn.addEventListener('click', startTempleSearch);
+readWallRiddleBtn.addEventListener('click', openTempleRiddleReader);
 
 function startGame() {
   const chosenFood = Number(foodInput.value);
@@ -837,6 +844,32 @@ function openTabletReader(id) {
   state.tabletOpen = true;
   tabletTitle.textContent = tablet.title;
   tabletBody.textContent = tablet.body;
+  templeVision.classList.add('hidden');
+  tabletPanel.classList.remove('hidden');
+  nextTurnBtn.disabled = true;
+  syncInventoryUi();
+}
+
+function openTempleRiddleReader() {
+  if (!state.colony || !state.colony.templeSearch.completed) {
+    return;
+  }
+
+  state.tabletOpen = true;
+  tabletTitle.textContent = 'Temple Wall Riddle';
+  tabletBody.textContent = [
+    'The one who seeks fortune',
+    'will writhe with anger.',
+    'They will never get their portion.',
+    'They went with the clanger.',
+    '',
+    'Seek not the forest, green with hunger.',
+    'Seek not the markets, bright with speech.',
+    'Go where the black earth glows beneath you,',
+    'where the worm sleeps just in reach.',
+  ].join('\n');
+  templeVisionText.textContent = 'While reading, you see a vision of a buried stepped temple under the black glow of Plutonium Flats.';
+  templeVision.classList.remove('hidden');
   tabletPanel.classList.remove('hidden');
   nextTurnBtn.disabled = true;
   syncInventoryUi();
@@ -845,6 +878,7 @@ function openTabletReader(id) {
 function closeTabletReader() {
   state.tabletOpen = false;
   tabletPanel.classList.add('hidden');
+  templeVision.classList.add('hidden');
   if (!state.gameOver && !state.traderOpen) {
     nextTurnBtn.disabled = false;
   }
@@ -1024,6 +1058,7 @@ function createColonyState(regionId, overrides = {}) {
       businessHouses: 0,
       storageHouses: 1,
       barracks: 0,
+      groundAnchors: 0,
     },
     core,
     territory: [core],
@@ -1081,6 +1116,7 @@ function loadStoredColony() {
     const defaultCore = getRegionCoreTile(parsed.region);
     parsed.powerDemand = Number.isFinite(parsed.powerDemand) ? parsed.powerDemand : 0;
     parsed.buildings.businessHouses = Number.isFinite(parsed.buildings.businessHouses) ? parsed.buildings.businessHouses : 0;
+    parsed.buildings.groundAnchors = Number.isFinite(parsed.buildings.groundAnchors) ? parsed.buildings.groundAnchors : 0;
     parsed.core = parsed.core && regionSet.has(`${parsed.core.x},${parsed.core.y}`)
       ? parsed.core
       : defaultCore;
@@ -1114,6 +1150,7 @@ function loadStoredColony() {
               businessHouses: colony.buildings?.businessHouses || 0,
               storageHouses: colony.buildings?.storageHouses || 1,
               barracks: colony.buildings?.barracks || 0,
+              groundAnchors: colony.buildings?.groundAnchors || 0,
             },
             food: 140,
             supplies: 150,
@@ -1468,6 +1505,7 @@ function syncColonyUi() {
   businessHouseCount.textContent = String(state.colony.buildings.businessHouses);
   storageHouseCount.textContent = String(state.colony.buildings.storageHouses);
   barracksCount.textContent = String(state.colony.buildings.barracks);
+  groundAnchorCount.textContent = String(state.colony.buildings.groundAnchors);
 
   if (!state.colony.explorer.unlocked) {
     explorerStatus.textContent = `Locked. Claim all ${regionSquareCount} region squares to unlock The Explorer.`;
@@ -1528,15 +1566,20 @@ function syncColonyUi() {
       templeSearchStatus.textContent = 'The Terrarex tunnel has been deciphered. Terrarex knowledge now doubles all building properties.';
       startTempleSearchBtn.disabled = true;
       startTempleSearchBtn.textContent = 'Temple Deciphered';
+      readWallRiddleBtn.classList.remove('hidden');
     } else if (state.colony.templeSearch.active) {
       templeSearchStatus.textContent = `Search active. ${state.colony.templeSearch.turnsLeft}/${state.colony.templeSearch.totalTurns} cycles remain.`;
       startTempleSearchBtn.disabled = true;
       startTempleSearchBtn.textContent = 'Search Underway';
+      readWallRiddleBtn.classList.add('hidden');
     } else {
       templeSearchStatus.textContent = 'The Terrarex tablet points to a buried tunnel beneath the Mergi Wastes.';
       startTempleSearchBtn.disabled = state.colony.supplies < 30;
       startTempleSearchBtn.textContent = 'Search Via Coords';
+      readWallRiddleBtn.classList.add('hidden');
     }
+  } else {
+    readWallRiddleBtn.classList.add('hidden');
   }
 
   colonyLog.innerHTML = '';
@@ -1554,6 +1597,7 @@ function syncColonyUi() {
   buildBusinessHouseBtn.disabled = state.colony.supplies < BUILDING_DATA.businessHouses.suppliesCost;
   buildStorageBtn.disabled = state.colony.supplies < BUILDING_DATA.storageHouses.suppliesCost;
   buildBarracksBtn.disabled = state.colony.supplies < BUILDING_DATA.barracks.suppliesCost;
+  buildGroundAnchorBtn.disabled = state.colony.supplies < BUILDING_DATA.groundAnchors.suppliesCost;
 }
 
 function syncColonyBuildViz() {
@@ -1570,6 +1614,7 @@ function syncColonyBuildViz() {
     ['businessHouses', 'Business'],
     ['storageHouses', 'Storage'],
     ['barracks', 'Barracks'],
+    ['groundAnchors', 'Anchors'],
   ];
 
   colonyBuildViz.innerHTML = '';
@@ -1923,6 +1968,12 @@ function advanceColonyCycle() {
   applySupportColonyEffects();
   advanceTempleSearch();
 
+  if (region.id === 'mergi' && colony.buildings.groundAnchors > 0) {
+    const anchorBoost = colony.buildings.groundAnchors * 3 * buildingBoost;
+    colony.stability = Math.min(100, colony.stability + anchorBoost);
+    addColonyLog(`Ground anchors steadied the sinking fields. Stability +${anchorBoost}.`, 'good');
+  }
+
   const territoryUse = colony.territory.length;
   const foodUse = 14 + colony.buildings.farms * 2 + colony.buildings.factories * 2 + colony.buildings.barracks * 3 + territoryUse;
   const supplyUse = region.supplyUpkeep + territoryUse;
@@ -2030,22 +2081,33 @@ function resolveRegionCycleEvents(region, cycleIssues) {
   }
 
   if (region.id === 'mergi') {
-    const sinkLoss = randInt(10, 18);
+    const anchorShield = colony.buildings.groundAnchors * 3 * getBuildingBoost(colony);
+    const sinkLoss = Math.max(0, randInt(10, 18) - anchorShield);
     colony.supplies = Math.max(0, colony.supplies - sinkLoss);
-    colony.stability = Math.max(0, colony.stability - 6);
-    addColonyLog(`Mergi ground reinforcement ate ${sinkLoss} supplies.`, 'bad');
-    cycleIssues.push('unstable ground');
+    const groundStabilityLoss = Math.max(0, 6 - Math.floor(anchorShield / 3));
+    colony.stability = Math.max(0, colony.stability - groundStabilityLoss);
+    if (sinkLoss > 0 || groundStabilityLoss > 0) {
+      addColonyLog(`Mergi ground reinforcement ate ${sinkLoss} supplies.`, 'bad');
+      cycleIssues.push('unstable ground');
+    } else {
+      addColonyLog('Ground anchors held the Mergi earth in place this cycle.', 'good');
+    }
     if (Math.random() < 0.4) {
       const foodLoss = randInt(20, 45);
       colony.food = Math.max(0, colony.food - foodLoss);
       addColonyLog(`Nibbloraxes stripped ${foodLoss} food from the depots.`, 'bad');
       cycleIssues.push('Nibblorax infestation');
     }
-    const supplyLoss = randInt(8, 14);
+    const supplyLoss = Math.max(0, randInt(8, 14) - Math.floor(anchorShield / 2));
     colony.supplies = Math.max(0, colony.supplies - supplyLoss);
-    colony.stability = Math.max(0, colony.stability - 8);
-    addColonyLog(`Sinking field supports failed. ${supplyLoss} more supplies were spent to stabilize them.`, 'bad');
-    cycleIssues.push('sinking field collapse');
+    const collapseLoss = Math.max(0, 8 - Math.floor(anchorShield / 2));
+    colony.stability = Math.max(0, colony.stability - collapseLoss);
+    if (supplyLoss > 0 || collapseLoss > 0) {
+      addColonyLog(`Sinking field supports failed. ${supplyLoss} more supplies were spent to stabilize them.`, 'bad');
+      cycleIssues.push('sinking field collapse');
+    } else {
+      addColonyLog('Ground anchors kept the sinking fields from opening this cycle.', 'good');
+    }
   }
 
   if (region.id === 'capital' && Math.random() < 0.55) {

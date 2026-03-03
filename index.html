@@ -186,6 +186,10 @@
         <div class="traderCard tabletCard">
           <h2 id="tabletTitle">Ancient Tablet</h2>
           <p id="tabletBody" class="tabletBody"></p>
+          <div id="templeVision" class="templeVision hidden">
+            <div class="templeVisionArt"></div>
+            <p id="templeVisionText" class="subState">A buried temple vision waits in the dark.</p>
+          </div>
           <button id="closeTabletBtn">Close Tablet</button>
         </div>
       </section>
@@ -282,6 +286,11 @@
             <div class="subState">Deploy protective walking robots. Each barracks gives 2 defense against tribal raids and coral attacks on food stores.</div>
             <button id="buildBarracksBtn" type="button" onclick="window.buildColonyFromUi && window.buildColonyFromUi('barracks')">Build Barracks</button>
           </div>
+          <div class="inventoryItem">
+            <div>Ground Anchors: <span id="groundAnchorCount">0</span></div>
+            <div class="subState">Drive deep stabilizers into bad ground. Best in Mergi Wastes.</div>
+            <button id="buildGroundAnchorBtn" type="button" onclick="window.buildColonyFromUi && window.buildColonyFromUi('groundAnchors')">Build Ground Anchor</button>
+          </div>
           <h2>Explorer</h2>
           <div class="inventoryItem">
             <div>The Explorer</div>
@@ -299,6 +308,7 @@
             <div>Terrarex Tunnel</div>
             <div id="templeSearchStatus" class="subState">The tablet coordinates point somewhere beneath the Mergi Wastes.</div>
             <button id="startTempleSearchBtn" type="button">Search Via Coords</button>
+            <button id="readWallRiddleBtn" type="button" class="hidden">Read Wall Riddle</button>
           </div>
         </aside>
       </div>

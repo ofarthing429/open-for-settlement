@@ -378,6 +378,64 @@ button:disabled {
   margin: 0 0 14px;
 }
 
+.templeVision {
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 2px solid #4a536a;
+  background: linear-gradient(180deg, #161b28 0%, #0f131d 100%);
+}
+
+.templeVisionArt {
+  height: 140px;
+  margin-bottom: 10px;
+  background:
+    linear-gradient(180deg, rgba(132, 80, 24, 0.15) 0%, rgba(17, 19, 26, 0) 28%),
+    radial-gradient(circle at 50% 18%, rgba(176, 255, 111, 0.18) 0%, rgba(176, 255, 111, 0) 28%),
+    linear-gradient(180deg, #11161f 0 55%, #241b14 55% 100%);
+  border: 2px solid #3d465a;
+  position: relative;
+  overflow: hidden;
+}
+
+.templeVisionArt::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  width: 170px;
+  height: 74px;
+  transform: translateX(-50%);
+  background:
+    linear-gradient(180deg, #6f7a89 0 18%, transparent 18% 100%),
+    linear-gradient(90deg,
+      transparent 0 10%,
+      #202733 10% 18%,
+      transparent 18% 24%,
+      #202733 24% 34%,
+      transparent 34% 40%,
+      #202733 40% 60%,
+      transparent 60% 66%,
+      #202733 66% 76%,
+      transparent 76% 82%,
+      #202733 82% 90%,
+      transparent 90% 100%),
+    linear-gradient(180deg, #2d3543 0 100%);
+  clip-path: polygon(50% 0, 88% 28%, 100% 100%, 0 100%, 12% 28%);
+  box-shadow: 0 0 0 2px #121722, 0 0 16px rgba(124, 255, 101, 0.15);
+}
+
+.templeVisionArt::after {
+  content: "";
+  position: absolute;
+  inset: auto 20px 18px;
+  height: 26px;
+  background:
+    radial-gradient(circle at 18% 50%, rgba(177, 255, 121, 0.24) 0%, rgba(177, 255, 121, 0) 16%),
+    radial-gradient(circle at 50% 50%, rgba(177, 255, 121, 0.2) 0%, rgba(177, 255, 121, 0) 18%),
+    radial-gradient(circle at 82% 50%, rgba(177, 255, 121, 0.24) 0%, rgba(177, 255, 121, 0) 16%),
+    linear-gradient(180deg, #2f241a 0%, #1a1410 100%);
+}
+
 .territoryMap {
   display: grid;
   grid-template-columns: repeat(13, 22px);
@@ -616,7 +674,7 @@ button:disabled {
   bottom: 34px;
   height: 190px;
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 8px;
   align-items: end;
   pointer-events: none;
@@ -725,6 +783,22 @@ button:disabled {
     linear-gradient(180deg, #ff8d8d 0 18%, transparent 18% 100%),
     linear-gradient(180deg, #5b4f57 0 100%);
   border: 2px solid #40363d;
+}
+
+.buildSprite.groundAnchors {
+  width: 22px;
+  height: 26px;
+  background:
+    linear-gradient(90deg,
+      transparent 0 18%,
+      #b7cedd 18% 28%,
+      transparent 28% 40%,
+      #b7cedd 40% 50%,
+      transparent 50% 62%,
+      #b7cedd 62% 72%,
+      transparent 72% 100%),
+    linear-gradient(180deg, #65758a 0 42%, #2b333f 42% 100%);
+  border: 2px solid #445060;
 }
 
 .colonyRegionFlavor {
