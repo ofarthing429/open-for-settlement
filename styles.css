@@ -454,6 +454,61 @@ button:disabled {
   border: 2px solid #3a4358;
 }
 
+.mainlandMap {
+  display: grid;
+  grid-template-columns: repeat(21, 14px);
+  gap: 2px;
+  justify-content: center;
+  padding: 12px;
+  margin: 0 0 8px;
+  background: linear-gradient(180deg, #141927 0%, #0c1018 100%);
+  border: 2px solid #3a4358;
+}
+
+.mainlandCell {
+  width: 14px;
+  height: 14px;
+  border: 1px solid #2e3340;
+  background: #15131a;
+}
+
+.mainlandCell.claimed {
+  background: linear-gradient(180deg, #98f57a 0%, #54b55a 100%);
+  border-color: #d7f8b4;
+}
+
+.mainlandCell.core {
+  background: linear-gradient(180deg, #ffe39a 0%, #c49b4a 100%);
+  border-color: #fff0bf;
+}
+
+.mainlandCell.copper {
+  box-shadow: inset 0 0 0 1px #d49b4d;
+}
+
+.mainlandCell.hive {
+  box-shadow: inset 0 0 0 1px #ff6767;
+}
+
+.mainlandCell.camp {
+  box-shadow: inset 0 0 0 1px #c97fff;
+}
+
+.mainlandCell.river {
+  box-shadow: inset 0 0 0 1px #5dd7ff;
+}
+
+.mainlandCell.burrow {
+  box-shadow: inset 0 0 0 1px #8f1f2f;
+}
+
+.mainlandCell.built {
+  background:
+    linear-gradient(180deg, rgba(255, 232, 175, 0.42) 0 30%, transparent 30% 100%),
+    linear-gradient(180deg, #4f6478 0%, #2f3c4a 100%);
+  border-color: #c8d5e7;
+}
+
 .territoryCell {
   width: 22px;
   height: 22px;

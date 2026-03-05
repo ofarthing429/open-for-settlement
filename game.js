@@ -52,6 +52,7 @@ const colonyBuildViz = document.getElementById('colonyBuildViz');
 const advanceColonyBtn = document.getElementById('advanceColonyBtn');
 const openColonyMapBtn = document.getElementById('openColonyMapBtn');
 const openCapitalMarketBtn = document.getElementById('openCapitalMarketBtn');
+const openIslandTakeoverBtn = document.getElementById('openIslandTakeoverBtn');
 const backToSetupBtn = document.getElementById('backToSetupBtn');
 const colonyLog = document.getElementById('colonyLog');
 const colonyTerritoryPanel = document.getElementById('colonyTerritoryPanel');
@@ -62,6 +63,14 @@ const marketCanvas = document.getElementById('marketCanvas');
 const marketNotice = document.getElementById('marketNotice');
 const marketPointsValue = document.getElementById('marketPointsValue');
 const closeCapitalMarketBtn = document.getElementById('closeCapitalMarketBtn');
+const islandTakeoverPanel = document.getElementById('islandTakeoverPanel');
+const mainlandCycleValue = document.getElementById('mainlandCycleValue');
+const mainlandActionsValue = document.getElementById('mainlandActionsValue');
+const mainlandMap = document.getElementById('mainlandMap');
+const mainlandLog = document.getElementById('mainlandLog');
+const advanceMainlandCycleBtn = document.getElementById('advanceMainlandCycleBtn');
+const skipMainlandCycleBtn = document.getElementById('skipMainlandCycleBtn');
+const closeIslandTakeoverBtn = document.getElementById('closeIslandTakeoverBtn');
 const farmCount = document.getElementById('farmCount');
 const powerPlantCount = document.getElementById('powerPlantCount');
 const mineCount = document.getElementById('mineCount');
@@ -193,6 +202,7 @@ const BUILDING_DATA = {
 };
 
 const MAP_SIZE = 13;
+const MAINLAND_SIZE = 21;
 
 const REGION_MASKS = {
   forest: new Set([
@@ -288,6 +298,7 @@ const state = {
   traderOpen: false,
   tabletOpen: false,
   marketOpen: false,
+  islandOpen: false,
   marketMessage: 'Walk up to a stall and press E to trade points.',
   marketPos: { x: 480, y: 460 },
   colonyMapOpen: false,
@@ -334,10 +345,13 @@ restartBtn.addEventListener('click', () => {
   tabletPanel.classList.add('hidden');
   colonyTerritoryPanel.classList.add('hidden');
   capitalMarketPanel.classList.add('hidden');
+  islandTakeoverPanel.classList.add('hidden');
   state.traderOpen = false;
   state.tabletOpen = false;
   state.colonyMapOpen = false;
   state.marketOpen = false;
+  state.islandOpen = false;
+  state.islandOpen = false;
   state.colonizeDelayTarget = loadColonizeDelay();
   state.colony = loadStoredColony();
   syncRecordsUi();
@@ -366,9 +380,13 @@ cancelColonizeBtn.addEventListener('click', showSetup);
 advanceColonyBtn.addEventListener('click', advanceColonyCycle);
 openColonyMapBtn.addEventListener('click', openColonyTerritoryMap);
 openCapitalMarketBtn.addEventListener('click', openCapitalMarket);
+openIslandTakeoverBtn.addEventListener('click', openIslandTakeoverPanel);
 backToSetupBtn.addEventListener('click', showSetup);
 closeColonyMapBtn.addEventListener('click', closeColonyTerritoryMap);
 closeCapitalMarketBtn.addEventListener('click', closeCapitalMarket);
+advanceMainlandCycleBtn.addEventListener('click', advanceMainlandCycle);
+skipMainlandCycleBtn.addEventListener('click', skipMainlandCycle);
+closeIslandTakeoverBtn.addEventListener('click', closeIslandTakeoverPanel);
 startTempleSearchBtn.addEventListener('click', startTempleSearch);
 readWallRiddleBtn.addEventListener('click', openTempleRiddleReader);
 window.addEventListener('keydown', handleCapitalMarketKeydown);
@@ -428,6 +446,7 @@ function startGame() {
   tabletPanel.classList.add('hidden');
   colonyTerritoryPanel.classList.add('hidden');
   capitalMarketPanel.classList.add('hidden');
+  islandTakeoverPanel.classList.add('hidden');
   nextTurnBtn.disabled = false;
 
   log.innerHTML = '';
@@ -451,7 +470,9 @@ function showSetup() {
   tabletPanel.classList.add('hidden');
   colonyTerritoryPanel.classList.add('hidden');
   capitalMarketPanel.classList.add('hidden');
+  islandTakeoverPanel.classList.add('hidden');
   state.marketOpen = false;
+  state.islandOpen = false;
   setupPanel.classList.remove('hidden');
   state.points = loadStoredPoints();
   state.colonizeDelayTarget = loadColonizeDelay();
@@ -977,7 +998,9 @@ function openColonyMap() {
   nativeTraderPanel.classList.add('hidden');
   tabletPanel.classList.add('hidden');
   capitalMarketPanel.classList.add('hidden');
+  islandTakeoverPanel.classList.add('hidden');
   state.marketOpen = false;
+  state.islandOpen = false;
   colonyMapPanel.classList.remove('hidden');
   renderRegionGrid();
   colonyMapPanel.scrollIntoView({ block: 'start' });
@@ -1116,10 +1139,53 @@ function createColonyState(regionId, overrides = {}) {
       totalTurns: 0,
     },
     techBoost: false,
+    mainland: createMainlandState(),
     lastInstabilityCauses: [],
     log: [],
     ...overrides,
   };
+}
+
+function createMainlandState() {
+  const core = { x: Math.floor(MAINLAND_SIZE / 2), y: Math.floor(MAINLAND_SIZE / 2) };
+  return {
+    unlocked: false,
+    active: false,
+    cycle: 0,
+    actionsLeft: 0,
+    core,
+    territory: [core],
+    buildingTiles: [],
+    specialTiles: buildMainlandSpecialTiles(core),
+    log: [],
+  };
+}
+
+function buildMainlandSpecialTiles(core) {
+  const tiles = [];
+  const used = new Set([`${core.x},${core.y}`]);
+  const pushRandom = (type, count) => {
+    for (let i = 0; i < count; i += 1) {
+      let tries = 0;
+      while (tries < 80) {
+        const x = randInt(0, MAINLAND_SIZE - 1);
+        const y = randInt(0, MAINLAND_SIZE - 1);
+        const key = `${x},${y}`;
+        if (!used.has(key)) {
+          used.add(key);
+          tiles.push({ x, y, type, discovered: false, cleared: false, bugsRemaining: 0 });
+          break;
+        }
+        tries += 1;
+      }
+    }
+  };
+  pushRandom('copper', 20);
+  pushRandom('hive', 24);
+  pushRandom('camp', 16);
+  pushRandom('river', 24);
+  pushRandom('burrow', 12);
+  return tiles;
 }
 
 function normalizeBuildings(buildings = {}) {
@@ -1134,6 +1200,58 @@ function normalizeBuildings(buildings = {}) {
     troops: Number.isFinite(buildings.troops) ? buildings.troops : 0,
     groundAnchors: Number.isFinite(buildings.groundAnchors) ? buildings.groundAnchors : 0,
   };
+}
+
+function normalizeMainlandState(mainland) {
+  const fallback = createMainlandState();
+  const parsed = mainland && typeof mainland === 'object' ? mainland : fallback;
+  parsed.unlocked = Boolean(parsed.unlocked);
+  parsed.active = Boolean(parsed.active);
+  parsed.cycle = Number.isFinite(parsed.cycle) ? parsed.cycle : 0;
+  parsed.actionsLeft = Number.isFinite(parsed.actionsLeft) ? parsed.actionsLeft : 0;
+  parsed.core = parsed.core && Number.isFinite(parsed.core.x) && Number.isFinite(parsed.core.y)
+    ? { x: parsed.core.x, y: parsed.core.y }
+    : fallback.core;
+  parsed.territory = Array.isArray(parsed.territory) && parsed.territory.length > 0
+    ? parsed.territory
+      .filter((tile) => Number.isFinite(tile.x) && Number.isFinite(tile.y))
+      .map((tile) => ({ x: tile.x, y: tile.y }))
+    : [parsed.core];
+  parsed.territory = parsed.territory.filter((tile, index, arr) => (
+    tile.x >= 0
+    && tile.x < MAINLAND_SIZE
+    && tile.y >= 0
+    && tile.y < MAINLAND_SIZE
+    && arr.findIndex((entry) => entry.x === tile.x && entry.y === tile.y) === index
+  ));
+  if (!parsed.territory.some((tile) => tile.x === parsed.core.x && tile.y === parsed.core.y)) {
+    parsed.territory.unshift(parsed.core);
+  }
+  const claimedSet = new Set(parsed.territory.map((tile) => `${tile.x},${tile.y}`));
+  parsed.buildingTiles = Array.isArray(parsed.buildingTiles)
+    ? parsed.buildingTiles
+      .filter((tile) => Number.isFinite(tile.x) && Number.isFinite(tile.y) && claimedSet.has(`${tile.x},${tile.y}`))
+      .map((tile) => ({ x: tile.x, y: tile.y, kind: tile.kind || 'unknown' }))
+    : [];
+  parsed.buildingTiles = parsed.buildingTiles.filter((tile, index, arr) => (
+    arr.findIndex((entry) => entry.x === tile.x && entry.y === tile.y) === index
+  ));
+  parsed.specialTiles = Array.isArray(parsed.specialTiles)
+    ? parsed.specialTiles
+      .filter((tile) => Number.isFinite(tile.x) && Number.isFinite(tile.y))
+      .map((tile) => ({
+        x: tile.x,
+        y: tile.y,
+        type: tile.type,
+        discovered: Boolean(tile.discovered),
+        cleared: Boolean(tile.cleared),
+        bugsRemaining: Number.isFinite(tile.bugsRemaining) ? tile.bugsRemaining : 0,
+      }))
+    : fallback.specialTiles;
+  parsed.log = Array.isArray(parsed.log)
+    ? parsed.log.map((entry) => (typeof entry === 'string' ? { text: entry, tone: '' } : entry))
+    : [];
+  return parsed;
 }
 
 function dedupeSupportColonies(supportColonies = [], activeRegion = '') {
@@ -1166,7 +1284,9 @@ function showColonyPanel() {
   nativeTraderPanel.classList.add('hidden');
   tabletPanel.classList.add('hidden');
   capitalMarketPanel.classList.add('hidden');
+  islandTakeoverPanel.classList.add('hidden');
   state.marketOpen = false;
+  state.islandOpen = false;
   colonyPanel.classList.remove('hidden');
   syncColonyUi();
   colonyPanel.scrollIntoView({ block: 'start' });
@@ -1210,6 +1330,7 @@ function loadStoredColony() {
         .map((colony) => {
           if (Array.isArray(colony.territory) && colony.territory.length > 0) {
             colony.buildings = normalizeBuildings(colony.buildings || {});
+            colony.mainland = normalizeMainlandState(parsed.mainland);
             return colony;
           }
           const migrated = createColonyState(colony.region, {
@@ -1221,6 +1342,7 @@ function loadStoredColony() {
             techBoost: Boolean(colony.techBoost),
             frontierUnlocked: Boolean(colony.frontierUnlocked),
             frontierWar: Boolean(colony.frontierWar),
+            mainland: normalizeMainlandState(parsed.mainland),
             log: [{ text: `${REGION_DATA[colony.region].name} support colony preserved from older campaign data.`, tone: '' }],
           });
           return migrated;
@@ -1251,6 +1373,7 @@ function loadStoredColony() {
     parsed.templeSearch.turnsLeft = Number.isFinite(parsed.templeSearch.turnsLeft) ? parsed.templeSearch.turnsLeft : 0;
     parsed.templeSearch.totalTurns = Number.isFinite(parsed.templeSearch.totalTurns) ? parsed.templeSearch.totalTurns : 0;
     parsed.techBoost = Boolean(parsed.techBoost);
+    parsed.mainland = normalizeMainlandState(parsed.mainland);
     parsed.lastInstabilityCauses = Array.isArray(parsed.lastInstabilityCauses) ? parsed.lastInstabilityCauses : [];
     parsed.log = Array.isArray(parsed.log)
       ? parsed.log.map((entry) => (typeof entry === 'string' ? { text: entry, tone: '' } : entry))
@@ -1304,6 +1427,53 @@ function isRegionFullyClaimed(colony = state.colony) {
     }
   }
   return true;
+}
+
+function getEmpireColonies(colony = state.colony) {
+  if (!colony) {
+    return [];
+  }
+  return [colony, ...(Array.isArray(colony.supportColonies) ? colony.supportColonies : [])];
+}
+
+function hasFullControlAcrossRegions(colony = state.colony) {
+  const empire = getEmpireColonies(colony);
+  if (empire.length === 0) {
+    return false;
+  }
+  const byRegion = new Map();
+  for (const entry of empire) {
+    if (entry && REGION_DATA[entry.region] && !byRegion.has(entry.region)) {
+      byRegion.set(entry.region, entry);
+    }
+  }
+  if (byRegion.size < Object.keys(REGION_DATA).length) {
+    return false;
+  }
+  for (const entry of byRegion.values()) {
+    if (!isRegionFullyClaimed(entry)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function ensureIslandTakeoverUnlocked() {
+  if (!state.colony || !state.colony.active) {
+    return;
+  }
+  if (!state.colony.mainland) {
+    state.colony.mainland = createMainlandState();
+  }
+  if (state.colony.mainland.unlocked) {
+    return;
+  }
+  if (hasFullControlAcrossRegions(state.colony)) {
+    state.colony.mainland.unlocked = true;
+    state.colony.mainland.log.unshift({ text: 'All colony region maps are secured. Island Takeover command is now unlocked.', tone: 'good' });
+    state.colony.mainland.log = state.colony.mainland.log.slice(0, 24);
+    addColonyLog('All region squares for every colony are secured. Island Takeover is now available.', 'good');
+  }
 }
 
 function getExplorerTravelTurns(fromRegion, toRegion) {
@@ -1462,6 +1632,7 @@ function snapshotSupportColony(colony) {
     explorer: cloneColonyData(colony.explorer),
     templeSearch: cloneColonyData(colony.templeSearch),
     techBoost: Boolean(colony.techBoost),
+    mainland: cloneColonyData(colony.mainland),
     lastInstabilityCauses: cloneColonyData(colony.lastInstabilityCauses || []),
     log: cloneColonyData(colony.log || []),
   };
@@ -1478,6 +1649,8 @@ function switchToSupportColony(index) {
     .filter((_, itemIndex) => itemIndex !== index)
     .map((colony) => cloneColonyData(colony));
 
+  // Mainland takeover is global campaign state; carry it with command transfers.
+  nextActive.mainland = cloneColonyData(state.colony.mainland || createMainlandState());
   nextActive.supportColonies = dedupeSupportColonies([...remaining, currentSnapshot], nextActive.region);
   nextActive.active = true;
   if (!nextActive.log) {
@@ -1568,6 +1741,7 @@ function syncColonyUi() {
   if (!state.colony || !state.colony.active) {
     return;
   }
+  ensureIslandTakeoverUnlocked();
 
   const region = REGION_DATA[state.colony.region];
   const caps = getColonyCaps();
@@ -1691,6 +1865,7 @@ function syncColonyUi() {
   buildTroopBtn.disabled = state.colony.supplies < BUILDING_DATA.troops.suppliesCost;
   buildGroundAnchorBtn.disabled = state.colony.supplies < BUILDING_DATA.groundAnchors.suppliesCost;
   openCapitalMarketBtn.disabled = state.colony.region !== 'capital';
+  openIslandTakeoverBtn.disabled = !state.colony.mainland || !state.colony.mainland.unlocked;
 }
 
 function syncColonyBuildViz() {
@@ -1761,11 +1936,35 @@ function buildColonyBuilding(kind) {
     return;
   }
 
+  if (state.colony.mainland && state.colony.mainland.active && state.colony.mainland.actionsLeft <= 0) {
+    addColonyLog('No build actions left this mainland cycle. Advance cycle or skip turn.', 'bad');
+    syncColonyUi();
+    return;
+  }
+
+  if (state.colony.mainland && state.colony.mainland.active) {
+    const placed = placeMainlandBuildingTile(kind);
+    if (!placed) {
+      addColonyLog('No free mainland square available for this building. Expand more territory first.', 'bad');
+      syncColonyUi();
+      if (state.islandOpen) {
+        syncIslandTakeoverUi();
+      }
+      return;
+    }
+  }
+
   state.colony.supplies -= rules.suppliesCost;
   state.colony.buildings[kind] += 1;
+  if (state.colony.mainland && state.colony.mainland.active) {
+    state.colony.mainland.actionsLeft = Math.max(0, state.colony.mainland.actionsLeft - 1);
+  }
   addColonyLog(`${rules.label} completed.`, 'good');
   storeColony();
   syncColonyUi();
+  if (state.islandOpen) {
+    syncIslandTakeoverUi();
+  }
 }
 
 function openColonyTerritoryMap() {
@@ -1805,6 +2004,273 @@ function closeCapitalMarket() {
   state.marketOpen = false;
   capitalMarketPanel.classList.add('hidden');
   showColonyPanel();
+}
+
+function openIslandTakeoverPanel() {
+  if (!state.colony || !state.colony.active) {
+    return;
+  }
+  ensureIslandTakeoverUnlocked();
+  if (!state.colony.mainland || !state.colony.mainland.unlocked) {
+    addColonyLog('Island Takeover is locked. Claim all region squares for every colony first.', 'bad');
+    syncColonyUi();
+    return;
+  }
+  if (!state.colony.mainland.active) {
+    state.colony.mainland.active = true;
+    state.colony.mainland.actionsLeft = getMainlandColonyCount() * 4;
+    addMainlandLog('Island Takeover command online. You can place 4 builds per colony this cycle.', 'good');
+  }
+
+  state.islandOpen = true;
+  state.marketOpen = false;
+  capitalMarketPanel.classList.add('hidden');
+  colonyTerritoryPanel.classList.add('hidden');
+  colonyPanel.classList.add('hidden');
+  islandTakeoverPanel.classList.remove('hidden');
+  syncIslandTakeoverUi();
+}
+
+function closeIslandTakeoverPanel() {
+  state.islandOpen = false;
+  islandTakeoverPanel.classList.add('hidden');
+  showColonyPanel();
+}
+
+function addMainlandLog(text, tone = '') {
+  if (!state.colony || !state.colony.mainland) {
+    return;
+  }
+  state.colony.mainland.log.unshift({ text, tone });
+  state.colony.mainland.log = state.colony.mainland.log.slice(0, 24);
+}
+
+function placeMainlandBuildingTile(kind) {
+  if (!state.colony || !state.colony.mainland) {
+    return false;
+  }
+  const mainland = state.colony.mainland;
+  const occupied = new Set((mainland.buildingTiles || []).map((tile) => `${tile.x},${tile.y}`));
+  const available = mainland.territory.filter((tile) => {
+    const key = `${tile.x},${tile.y}`;
+    if (occupied.has(key)) {
+      return false;
+    }
+    // Keep command core tile clear.
+    if (tile.x === mainland.core.x && tile.y === mainland.core.y) {
+      return false;
+    }
+    return true;
+  });
+  if (available.length === 0) {
+    return false;
+  }
+  const chosen = available[randInt(0, available.length - 1)];
+  mainland.buildingTiles.push({ x: chosen.x, y: chosen.y, kind });
+  addMainlandLog(`Construction lot occupied at ${chosen.x},${chosen.y}.`, 'good');
+  return true;
+}
+
+function syncIslandTakeoverUi() {
+  if (!state.islandOpen || !state.colony || !state.colony.mainland) {
+    return;
+  }
+  const mainland = state.colony.mainland;
+  mainlandCycleValue.textContent = String(mainland.cycle);
+  mainlandActionsValue.textContent = String(mainland.actionsLeft);
+  mainlandLog.innerHTML = '';
+  for (const entry of mainland.log) {
+    const p = document.createElement('p');
+    p.className = `logEntry ${entry.tone || ''}`.trim();
+    p.textContent = entry.text;
+    mainlandLog.appendChild(p);
+  }
+  renderMainlandMap();
+}
+
+function renderMainlandMap() {
+  if (!state.colony || !state.colony.mainland) {
+    mainlandMap.innerHTML = '';
+    return;
+  }
+  const mainland = state.colony.mainland;
+  const claimed = new Set(mainland.territory.map((tile) => `${tile.x},${tile.y}`));
+  const buildingTiles = new Map((mainland.buildingTiles || []).map((tile) => [`${tile.x},${tile.y}`, tile]));
+  const specials = new Map((mainland.specialTiles || []).map((tile) => [`${tile.x},${tile.y}`, tile]));
+  mainlandMap.innerHTML = '';
+  for (let y = 0; y < MAINLAND_SIZE; y += 1) {
+    for (let x = 0; x < MAINLAND_SIZE; x += 1) {
+      const cell = document.createElement('div');
+      cell.className = 'mainlandCell';
+      const key = `${x},${y}`;
+      if (claimed.has(key)) {
+        cell.classList.add('claimed');
+      }
+      const special = specials.get(key);
+      if (special) {
+        cell.classList.add(special.type);
+      }
+      if (buildingTiles.has(key)) {
+        cell.classList.add('built');
+      }
+      if (x === mainland.core.x && y === mainland.core.y) {
+        cell.classList.add('core');
+      }
+      mainlandMap.appendChild(cell);
+    }
+  }
+}
+
+function expandMainlandTerritory(steps = 1) {
+  if (!state.colony || !state.colony.mainland) {
+    return 0;
+  }
+  const mainland = state.colony.mainland;
+  const occupied = new Set(mainland.territory.map((tile) => `${tile.x},${tile.y}`));
+  const deltas = [
+    { x: 1, y: 0 },
+    { x: -1, y: 0 },
+    { x: 0, y: 1 },
+    { x: 0, y: -1 },
+  ];
+  let gained = 0;
+  for (let step = 0; step < steps; step += 1) {
+    const candidates = [];
+    for (const tile of mainland.territory) {
+      for (const delta of deltas) {
+        const nx = tile.x + delta.x;
+        const ny = tile.y + delta.y;
+        const key = `${nx},${ny}`;
+        if (nx < 0 || nx >= MAINLAND_SIZE || ny < 0 || ny >= MAINLAND_SIZE || occupied.has(key)) {
+          continue;
+        }
+        if (!candidates.some((item) => item.x === nx && item.y === ny)) {
+          candidates.push({ x: nx, y: ny });
+        }
+      }
+    }
+    if (candidates.length === 0) {
+      break;
+    }
+    const chosen = candidates[randInt(0, candidates.length - 1)];
+    mainland.territory.push(chosen);
+    occupied.add(`${chosen.x},${chosen.y}`);
+    gained += 1;
+    resolveMainlandClaim(chosen);
+  }
+  return gained;
+}
+
+function resolveMainlandClaim(tile) {
+  if (!state.colony || !state.colony.mainland) {
+    return;
+  }
+  const mainland = state.colony.mainland;
+  const specials = mainland.specialTiles.filter((entry) => entry.x === tile.x && entry.y === tile.y && !entry.discovered);
+  for (const special of specials) {
+    special.discovered = true;
+    if (special.type === 'copper') {
+      state.colony.supplies += 65;
+      special.cleared = true;
+      addMainlandLog(`Copper cache captured at ${tile.x},${tile.y}. Supplies +65.`, 'good');
+    } else if (special.type === 'hive') {
+      const bugs = randInt(20, 56);
+      special.bugsRemaining = bugs;
+      addMainlandLog(`Nibblorax hive exposed at ${tile.x},${tile.y}. ${bugs} bugs released.`, 'bad');
+    } else if (special.type === 'camp') {
+      state.colony.frontierWar = true;
+      addMainlandLog(`Native encampment reached at ${tile.x},${tile.y}. Regional raids intensify.`, 'bad');
+    } else if (special.type === 'river') {
+      addMainlandLog(`Purple river secured at ${tile.x},${tile.y}. Food output gets a fishing boost.`, 'good');
+    } else if (special.type === 'burrow') {
+      triggerWormBurrowCollapse(tile);
+      addMainlandLog(`Worm burrow struck at ${tile.x},${tile.y}. Nearby sectors are unstable.`, 'bad');
+    }
+  }
+}
+
+function resolveMainlandHivePressure() {
+  if (!state.colony || !state.colony.mainland) {
+    return;
+  }
+  const mainland = state.colony.mainland;
+  const defense = getColonyDefense(state.colony);
+  let defenseRemaining = defense;
+  const hives = mainland.specialTiles.filter((tile) => tile.type === 'hive' && tile.discovered && !tile.cleared && tile.bugsRemaining > 0);
+  for (const hive of hives) {
+    if (defenseRemaining > 0) {
+      const cleared = Math.min(defenseRemaining, hive.bugsRemaining);
+      hive.bugsRemaining -= cleared;
+      defenseRemaining -= cleared;
+      if (cleared > 0) {
+        addMainlandLog(`Defense cleared ${cleared} Nibbloraxes near ${hive.x},${hive.y}.`, 'good');
+      }
+      if (hive.bugsRemaining <= 0) {
+        hive.cleared = true;
+        addMainlandLog(`Hive at ${hive.x},${hive.y} cleared.`, 'good');
+      }
+    }
+    if (hive.bugsRemaining > 0) {
+      state.colony.food = Math.max(0, state.colony.food - hive.bugsRemaining);
+      addMainlandLog(`Hive ${hive.x},${hive.y} still active. Food -${hive.bugsRemaining}.`, 'bad');
+    }
+  }
+}
+
+function getMainlandColonyCount() {
+  const empire = getEmpireColonies(state.colony);
+  const regions = new Set();
+  for (const entry of empire) {
+    if (entry && REGION_DATA[entry.region]) {
+      regions.add(entry.region);
+    }
+  }
+  return Math.max(1, regions.size);
+}
+
+function advanceMainlandCycle() {
+  if (!state.colony || !state.colony.mainland || !state.colony.mainland.unlocked) {
+    return;
+  }
+  const mainland = state.colony.mainland;
+  mainland.active = true;
+  mainland.cycle += 1;
+  mainland.actionsLeft = getMainlandColonyCount() * 4;
+
+  const expansionSteps = 2 + state.colony.buildings.businessHouses;
+  const gained = expandMainlandTerritory(expansionSteps);
+  addMainlandLog(`Mainland expansion gained ${gained} square${gained === 1 ? '' : 's'} this cycle.`, gained > 0 ? 'good' : '');
+
+  resolveMainlandHivePressure();
+  if (Math.random() < 0.42) {
+    const raid = randInt(0, Math.max(0, getAttackRollCapDefense(state.colony) * 2));
+    if (getColonyDefense(state.colony) < raid) {
+      const loss = Math.max(6, raid - getColonyDefense(state.colony));
+      state.colony.stability = Math.max(0, state.colony.stability - loss);
+      addMainlandLog(`Mainland raids hit with ${raid} force. Stability -${loss}.`, 'bad');
+    } else {
+      addMainlandLog(`Mainland raid (force ${raid}) was repelled.`, 'good');
+    }
+  }
+  if (Math.random() < 0.34) {
+    const supplyLoss = randInt(10, 28);
+    state.colony.supplies = Math.max(0, state.colony.supplies - supplyLoss);
+    addMainlandLog(`Mainland hazards consumed ${supplyLoss} supplies.`, 'bad');
+  }
+
+  storeColony();
+  syncColonyUi();
+  syncIslandTakeoverUi();
+}
+
+function skipMainlandCycle() {
+  if (!state.colony || !state.colony.mainland || !state.colony.mainland.unlocked) {
+    return;
+  }
+  state.colony.mainland.active = true;
+  state.colony.mainland.actionsLeft = 0;
+  addMainlandLog('Turn skipped. No build actions used this cycle.', '');
+  advanceMainlandCycle();
 }
 
 function getNearbyMarketStall() {
@@ -2486,6 +2952,14 @@ function advanceColonyCycle() {
 
   if (colony.stability <= 0) {
     colony.stability = 0;
+    if (colony.mainland && colony.mainland.active) {
+      addColonyLog('Mainland protocol failure: stability collapsed during Island Takeover. This colony is lost.', 'bad');
+      state.colony = null;
+      storeColony();
+      syncColonizeUi();
+      showSetup();
+      return;
+    }
     addColonyLog('Colony stability has broken. Rebuilding this settlement will take another campaign.', 'bad');
   }
 
@@ -2493,6 +2967,7 @@ function advanceColonyCycle() {
   storePoints();
   colony.lastInstabilityCauses = cycleIssues;
   unlockExplorerIfReady();
+  ensureIslandTakeoverUnlocked();
   syncHud();
   storeColony();
   syncColonizeUi();

@@ -242,6 +242,7 @@
             <button id="advanceColonyBtn">Advance Colony Cycle</button>
             <button id="openColonyMapBtn">Map</button>
             <button id="openCapitalMarketBtn">Capital Market</button>
+            <button id="openIslandTakeoverBtn">Island Takeover</button>
             <button id="backToSetupBtn">Back To Setup</button>
           </footer>
 
@@ -351,6 +352,34 @@
       </section>
       <footer class="controls">
         <button id="closeCapitalMarketBtn">Back To Colony</button>
+      </footer>
+    </section>
+
+    <section id="islandTakeoverPanel" class="panel hidden">
+      <header class="hud">
+        <div class="leftHud">
+          <div>Island Takeover</div>
+          <div>Mainland Cycle: <span id="mainlandCycleValue">0</span></div>
+          <div>Actions Left: <span id="mainlandActionsValue">0</span></div>
+        </div>
+        <div class="leftHud">
+          <div>Legend: Green = yours</div>
+          <div>Orange = copper, Red = hive, Purple = camp</div>
+          <div>Blue = river, Dark Red = worm burrow</div>
+        </div>
+      </header>
+      <section class="logPanel">
+        <h2>Mainland Grid</h2>
+        <div id="mainlandMap" class="mainlandMap"></div>
+      </section>
+      <section class="logPanel">
+        <h2>Mainland Log</h2>
+        <div id="mainlandLog" class="log"></div>
+      </section>
+      <footer class="controls">
+        <button id="advanceMainlandCycleBtn">Advance Mainland Cycle</button>
+        <button id="skipMainlandCycleBtn">Skip Turn</button>
+        <button id="closeIslandTakeoverBtn">Back To Colony</button>
       </footer>
     </section>
   </main>
