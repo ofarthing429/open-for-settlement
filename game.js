@@ -2050,25 +2050,91 @@ function placeMainlandBuildingTile(kind) {
     return false;
   }
   const mainland = state.colony.mainland;
-  const occupied = new Set((mainland.buildingTiles || []).map((tile) => `${tile.x},${tile.y}`));
-  const available = mainland.territory.filter((tile) => {
-    const key = `${tile.x},${tile.y}`;
-    if (occupied.has(key)) {
-      return false;
+  const claimed = new Set(mainland.territory.map((tile) => `${tile.x},${tile.y}`));
+  const deltas = [
+    { x: 1, y: 0 },
+    { x: -1, y: 0 },
+    { x: 0, y: 1 },
+    { x: 0, y: -1 },
+  ];
+  const candidates = [];
+  for (const tile of mainland.territory) {
+    for (const delta of deltas) {
+      const nx = tile.x + delta.x;
+      const ny = tile.y + delta.y;
+      const key = `${nx},${ny}`;
+      if (nx < 0 || nx >= MAINLAND_SIZE || ny < 0 || ny >= MAINLAND_SIZE || claimed.has(key)) {
+        continue;
+      }
+      if (!candidates.some((item) => item.x === nx && item.y === ny)) {
+        candidates.push({ x: nx, y: ny });
+      }
     }
-    // Keep command core tile clear.
-    if (tile.x === mainland.core.x && tile.y === mainland.core.y) {
-      return false;
-    }
-    return true;
-  });
-  if (available.length === 0) {
+  }
+  if (candidates.length === 0) {
     return false;
   }
-  const chosen = available[randInt(0, available.length - 1)];
+  const chosen = candidates[randInt(0, candidates.length - 1)];
+  mainland.territory.push({ x: chosen.x, y: chosen.y });
   mainland.buildingTiles.push({ x: chosen.x, y: chosen.y, kind });
-  addMainlandLog(`Construction lot occupied at ${chosen.x},${chosen.y}.`, 'good');
+  addMainlandLog(`Built ${BUILDING_DATA[kind].label} at ${chosen.x},${chosen.y}.`, 'good');
+  resolveMainlandClaim(chosen);
   return true;
+}
+
+function removeMainlandBuildingTile(tile, reason = '') {
+  if (!state.colony || !state.colony.mainland || !tile) {
+    return;
+  }
+  const mainland = state.colony.mainland;
+  mainland.buildingTiles = mainland.buildingTiles.filter((entry) => !(entry.x === tile.x && entry.y === tile.y));
+  mainland.territory = mainland.territory.filter((entry) => {
+    if (entry.x === mainland.core.x && entry.y === mainland.core.y) {
+      return true;
+    }
+    return !(entry.x === tile.x && entry.y === tile.y);
+  });
+  if (state.colony.buildings[tile.kind] > 0) {
+    state.colony.buildings[tile.kind] -= 1;
+  }
+  const label = BUILDING_DATA[tile.kind] ? BUILDING_DATA[tile.kind].label : 'Building';
+  addMainlandLog(`${label} at ${tile.x},${tile.y} was destroyed${reason ? ` by ${reason}` : ''}.`, 'bad');
+}
+
+function destroyRandomMainlandBuilding(reason = 'hazards') {
+  if (!state.colony || !state.colony.mainland) {
+    return false;
+  }
+  const mainland = state.colony.mainland;
+  if (!Array.isArray(mainland.buildingTiles) || mainland.buildingTiles.length === 0) {
+    return false;
+  }
+  const index = randInt(0, mainland.buildingTiles.length - 1);
+  const tile = mainland.buildingTiles[index];
+  removeMainlandBuildingTile(tile, reason);
+  return true;
+}
+
+function triggerMainlandBurrowCollapse(centerTile) {
+  if (!state.colony || !state.colony.mainland) {
+    return;
+  }
+  const defense = getColonyDefense(state.colony);
+  if (defense > 75) {
+    addMainlandLog(`Worm burrow at ${centerTile.x},${centerTile.y} was contained by defense > 75.`, 'good');
+    return;
+  }
+  const mainland = state.colony.mainland;
+  const doomed = mainland.buildingTiles.filter((tile) => (
+    Math.abs(tile.x - centerTile.x) <= 2 && Math.abs(tile.y - centerTile.y) <= 2
+  ));
+  if (doomed.length === 0) {
+    addMainlandLog(`Worm burrow at ${centerTile.x},${centerTile.y} opened, but hit empty ground.`, 'bad');
+    return;
+  }
+  for (const tile of doomed) {
+    removeMainlandBuildingTile(tile, 'worm collapse');
+  }
 }
 
 function syncIslandTakeoverUi() {
@@ -2183,7 +2249,7 @@ function resolveMainlandClaim(tile) {
     } else if (special.type === 'river') {
       addMainlandLog(`Purple river secured at ${tile.x},${tile.y}. Food output gets a fishing boost.`, 'good');
     } else if (special.type === 'burrow') {
-      triggerWormBurrowCollapse(tile);
+      triggerMainlandBurrowCollapse(tile);
       addMainlandLog(`Worm burrow struck at ${tile.x},${tile.y}. Nearby sectors are unstable.`, 'bad');
     }
   }
@@ -2237,9 +2303,7 @@ function advanceMainlandCycle() {
   mainland.cycle += 1;
   mainland.actionsLeft = getMainlandColonyCount() * 4;
 
-  const expansionSteps = 2 + state.colony.buildings.businessHouses;
-  const gained = expandMainlandTerritory(expansionSteps);
-  addMainlandLog(`Mainland expansion gained ${gained} square${gained === 1 ? '' : 's'} this cycle.`, gained > 0 ? 'good' : '');
+  addMainlandLog('Mainland cycle advanced. Build to claim new squares.', '');
 
   resolveMainlandHivePressure();
   if (Math.random() < 0.42) {
@@ -2248,6 +2312,9 @@ function advanceMainlandCycle() {
       const loss = Math.max(6, raid - getColonyDefense(state.colony));
       state.colony.stability = Math.max(0, state.colony.stability - loss);
       addMainlandLog(`Mainland raids hit with ${raid} force. Stability -${loss}.`, 'bad');
+      if (Math.random() < 0.5) {
+        destroyRandomMainlandBuilding('raiders');
+      }
     } else {
       addMainlandLog(`Mainland raid (force ${raid}) was repelled.`, 'good');
     }
@@ -2256,6 +2323,9 @@ function advanceMainlandCycle() {
     const supplyLoss = randInt(10, 28);
     state.colony.supplies = Math.max(0, state.colony.supplies - supplyLoss);
     addMainlandLog(`Mainland hazards consumed ${supplyLoss} supplies.`, 'bad');
+    if (Math.random() < 0.35) {
+      destroyRandomMainlandBuilding('mainland hazards');
+    }
   }
 
   storeColony();
