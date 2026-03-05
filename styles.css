@@ -682,7 +682,7 @@ button:disabled {
   bottom: 34px;
   height: 190px;
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(9, minmax(0, 1fr));
   gap: 8px;
   align-items: end;
   pointer-events: none;
@@ -807,6 +807,15 @@ button:disabled {
       transparent 72% 100%),
     linear-gradient(180deg, #65758a 0 42%, #2b333f 42% 100%);
   border: 2px solid #445060;
+}
+
+.buildSprite.troops {
+  width: 14px;
+  height: 22px;
+  background:
+    linear-gradient(180deg, #ffd9a1 0 24%, transparent 24% 100%),
+    linear-gradient(180deg, #5b6d7e 0 100%);
+  border: 2px solid #3f4d5a;
 }
 
 .colonyRegionFlavor {

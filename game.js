@@ -63,6 +63,7 @@ const factoryCount = document.getElementById('factoryCount');
 const businessHouseCount = document.getElementById('businessHouseCount');
 const storageHouseCount = document.getElementById('storageHouseCount');
 const barracksCount = document.getElementById('barracksCount');
+const troopCount = document.getElementById('troopCount');
 const groundAnchorCount = document.getElementById('groundAnchorCount');
 const explorerStatus = document.getElementById('explorerStatus');
 const explorerOutposts = document.getElementById('explorerOutposts');
@@ -81,6 +82,7 @@ const buildFactoryBtn = document.getElementById('buildFactoryBtn');
 const buildBusinessHouseBtn = document.getElementById('buildBusinessHouseBtn');
 const buildStorageBtn = document.getElementById('buildStorageBtn');
 const buildBarracksBtn = document.getElementById('buildBarracksBtn');
+const buildTroopBtn = document.getElementById('buildTroopBtn');
 const buildGroundAnchorBtn = document.getElementById('buildGroundAnchorBtn');
 
 const turnValue = document.getElementById('turnValue');
@@ -178,6 +180,7 @@ const BUILDING_DATA = {
   businessHouses: { label: 'Business House', suppliesCost: 45 },
   storageHouses: { label: 'Storage House', suppliesCost: 30 },
   barracks: { label: 'Barracks', suppliesCost: 50 },
+  troops: { label: 'Troop', suppliesCost: 20 },
   groundAnchors: { label: 'Ground Anchor', suppliesCost: 55 },
 };
 
@@ -1060,6 +1063,7 @@ function createColonyState(regionId, overrides = {}) {
       businessHouses: 0,
       storageHouses: 1,
       barracks: 0,
+      troops: 0,
       groundAnchors: 0,
     },
     core,
@@ -1097,6 +1101,7 @@ function normalizeBuildings(buildings = {}) {
     businessHouses: Number.isFinite(buildings.businessHouses) ? buildings.businessHouses : 0,
     storageHouses: Number.isFinite(buildings.storageHouses) ? buildings.storageHouses : 1,
     barracks: Number.isFinite(buildings.barracks) ? buildings.barracks : 0,
+    troops: Number.isFinite(buildings.troops) ? buildings.troops : 0,
     groundAnchors: Number.isFinite(buildings.groundAnchors) ? buildings.groundAnchors : 0,
   };
 }
@@ -1362,6 +1367,11 @@ function getBuildingBoost(colony = state.colony) {
   return colony && colony.techBoost ? 2 : 1;
 }
 
+function getColonyDefense(colony = state.colony) {
+  const boost = getBuildingBoost(colony);
+  return (colony.buildings.barracks * 2 + colony.buildings.troops) * boost;
+}
+
 function cloneColonyData(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -1495,7 +1505,7 @@ function syncColonyUi() {
 
   const region = REGION_DATA[state.colony.region];
   const caps = getColonyCaps();
-  const defense = state.colony.buildings.barracks * 2 * getBuildingBoost(state.colony);
+  const defense = getColonyDefense(state.colony);
   const regionSquareCount = REGION_MASKS[state.colony.region] ? REGION_MASKS[state.colony.region].size : 0;
   const regionFilled = isRegionFullyClaimed(state.colony);
 
@@ -1519,6 +1529,7 @@ function syncColonyUi() {
   businessHouseCount.textContent = String(state.colony.buildings.businessHouses);
   storageHouseCount.textContent = String(state.colony.buildings.storageHouses);
   barracksCount.textContent = String(state.colony.buildings.barracks);
+  troopCount.textContent = String(state.colony.buildings.troops);
   groundAnchorCount.textContent = String(state.colony.buildings.groundAnchors);
 
   if (!state.colony.explorer.unlocked) {
@@ -1611,6 +1622,7 @@ function syncColonyUi() {
   buildBusinessHouseBtn.disabled = state.colony.supplies < BUILDING_DATA.businessHouses.suppliesCost;
   buildStorageBtn.disabled = state.colony.supplies < BUILDING_DATA.storageHouses.suppliesCost;
   buildBarracksBtn.disabled = state.colony.supplies < BUILDING_DATA.barracks.suppliesCost;
+  buildTroopBtn.disabled = state.colony.supplies < BUILDING_DATA.troops.suppliesCost;
   buildGroundAnchorBtn.disabled = state.colony.supplies < BUILDING_DATA.groundAnchors.suppliesCost;
 }
 
@@ -1628,6 +1640,7 @@ function syncColonyBuildViz() {
     ['businessHouses', 'Business'],
     ['storageHouses', 'Storage'],
     ['barracks', 'Barracks'],
+    ['troops', 'Troops'],
     ['groundAnchors', 'Anchors'],
   ];
 
@@ -1946,7 +1959,7 @@ function resolveHiveInfestations(cycleIssues) {
     return;
   }
 
-  const defense = state.colony.buildings.barracks * 2 * getBuildingBoost(state.colony);
+  const defense = getColonyDefense(state.colony);
   const activeHives = state.colony.specialTiles.filter((tile) => tile.type === 'hive' && tile.discovered && !tile.cleared && tile.bugsRemaining > 0);
   if (activeHives.length === 0) {
     return;
@@ -2120,7 +2133,7 @@ function advanceColonyCycle() {
 
 function resolveRegionCycleEvents(region, cycleIssues) {
   const colony = state.colony;
-  const defense = colony.buildings.barracks * 2 * getBuildingBoost(colony);
+  const defense = getColonyDefense(colony);
 
   const raidChance = region.id !== 'capital' ? (colony.frontierWar ? 0.56 : 0.28) : 0;
   if (region.id !== 'capital' && Math.random() < raidChance) {
