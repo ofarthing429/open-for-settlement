@@ -1885,25 +1885,105 @@ function drawCapitalMarket() {
   const h = marketCanvas.height;
   marketCtx.clearRect(0, 0, w, h);
 
-  marketCtx.fillStyle = '#151a26';
+  // Sky and horizon
+  const skyGrad = marketCtx.createLinearGradient(0, 0, 0, h);
+  skyGrad.addColorStop(0, '#0f1a2d');
+  skyGrad.addColorStop(0.45, '#1d2d47');
+  skyGrad.addColorStop(1, '#281d2d');
+  marketCtx.fillStyle = skyGrad;
   marketCtx.fillRect(0, 0, w, h);
-  marketCtx.fillStyle = '#2b2136';
-  marketCtx.fillRect(28, 24, w - 56, h - 48);
 
-  for (const stall of CAPITAL_MARKET_STALLS) {
-    marketCtx.fillStyle = '#60418f';
-    marketCtx.fillRect(stall.x - 32, stall.y - 22, 64, 44);
-    marketCtx.fillStyle = '#9eff90';
-    marketCtx.fillRect(stall.x - 30, stall.y - 38, 60, 12);
-    marketCtx.fillStyle = '#12151d';
-    marketCtx.font = '12px Trebuchet MS';
-    marketCtx.fillText(stall.name, stall.x - 28, stall.y + 4);
+  // Glowcore moon
+  marketCtx.fillStyle = '#a9ff9f';
+  marketCtx.beginPath();
+  marketCtx.arc(130, 90, 34, 0, Math.PI * 2);
+  marketCtx.fill();
+  marketCtx.fillStyle = 'rgba(169,255,159,0.18)';
+  marketCtx.beginPath();
+  marketCtx.arc(130, 90, 54, 0, Math.PI * 2);
+  marketCtx.fill();
+
+  // Distant ridges
+  marketCtx.fillStyle = '#2b3550';
+  marketCtx.beginPath();
+  marketCtx.moveTo(0, 240);
+  marketCtx.lineTo(80, 185);
+  marketCtx.lineTo(180, 228);
+  marketCtx.lineTo(320, 170);
+  marketCtx.lineTo(470, 220);
+  marketCtx.lineTo(610, 180);
+  marketCtx.lineTo(760, 230);
+  marketCtx.lineTo(880, 190);
+  marketCtx.lineTo(960, 240);
+  marketCtx.lineTo(960, 320);
+  marketCtx.lineTo(0, 320);
+  marketCtx.closePath();
+  marketCtx.fill();
+
+  // Market ground
+  const groundGrad = marketCtx.createLinearGradient(0, 250, 0, h);
+  groundGrad.addColorStop(0, '#3a2d2f');
+  groundGrad.addColorStop(1, '#1d161f');
+  marketCtx.fillStyle = groundGrad;
+  marketCtx.fillRect(0, 250, w, h - 250);
+
+  // Main trading lane
+  marketCtx.fillStyle = '#6f5b45';
+  marketCtx.fillRect(40, 278, w - 80, 116);
+  marketCtx.fillStyle = 'rgba(255, 240, 190, 0.12)';
+  for (let x = 60; x < w - 60; x += 64) {
+    marketCtx.fillRect(x, 332, 28, 6);
   }
 
+  // Left-side ruins
+  marketCtx.fillStyle = '#3c4255';
+  marketCtx.fillRect(52, 210, 46, 74);
+  marketCtx.fillRect(106, 228, 28, 56);
+  marketCtx.fillStyle = '#6de57e';
+  marketCtx.fillRect(62, 224, 8, 10);
+  marketCtx.fillRect(118, 242, 6, 8);
+
+  for (const stall of CAPITAL_MARKET_STALLS) {
+    // Stall body and canopy
+    marketCtx.fillStyle = '#4e2c63';
+    marketCtx.fillRect(stall.x - 44, stall.y - 26, 88, 54);
+    marketCtx.fillStyle = '#8ef58d';
+    marketCtx.fillRect(stall.x - 48, stall.y - 40, 96, 14);
+    marketCtx.fillStyle = '#22142c';
+    marketCtx.fillRect(stall.x - 44, stall.y - 12, 88, 6);
+
+    // Lantern pixels
+    marketCtx.fillStyle = '#ffe79b';
+    marketCtx.fillRect(stall.x - 38, stall.y - 18, 4, 4);
+    marketCtx.fillRect(stall.x + 34, stall.y - 18, 4, 4);
+
+    // Stall sign text (directly on the canopy)
+    const shortName = stall.name.length > 11 ? `${stall.name.slice(0, 11)}.` : stall.name;
+    marketCtx.textAlign = 'center';
+    marketCtx.textBaseline = 'middle';
+    marketCtx.font = '10px Trebuchet MS';
+    marketCtx.fillStyle = '#1a2226';
+    marketCtx.fillText(shortName, stall.x, stall.y - 33);
+
+    // Cost badge attached to the stall
+    marketCtx.fillStyle = '#161b2a';
+    marketCtx.fillRect(stall.x + 24, stall.y - 22, 18, 12);
+    marketCtx.strokeStyle = '#95a7c7';
+    marketCtx.strokeRect(stall.x + 24.5, stall.y - 21.5, 17, 11);
+    marketCtx.font = '9px Trebuchet MS';
+    marketCtx.fillStyle = '#e6efff';
+    marketCtx.fillText(String(stall.cost), stall.x + 33, stall.y - 16);
+    marketCtx.textAlign = 'start';
+    marketCtx.textBaseline = 'alphabetic';
+  }
+
+  // Player crawler marker
   marketCtx.fillStyle = '#f4d88c';
-  marketCtx.fillRect(state.marketPos.x - 8, state.marketPos.y - 8, 16, 16);
+  marketCtx.fillRect(state.marketPos.x - 9, state.marketPos.y - 9, 18, 18);
+  marketCtx.fillStyle = '#433824';
+  marketCtx.fillRect(state.marketPos.x - 9, state.marketPos.y + 7, 18, 4);
   marketCtx.strokeStyle = '#23180f';
-  marketCtx.strokeRect(state.marketPos.x - 8, state.marketPos.y - 8, 16, 16);
+  marketCtx.strokeRect(state.marketPos.x - 9, state.marketPos.y - 9, 18, 18);
 }
 
 function handleCapitalMarketKeydown(event) {
