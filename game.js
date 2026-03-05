@@ -1754,6 +1754,8 @@ function syncTerritoryMap() {
           cell.classList.add('camp');
         } else if (special.type === 'river') {
           cell.classList.add('river');
+        } else if (special.type === 'burrow') {
+          cell.classList.add('burrow');
         }
         if (special.cleared) {
           cell.classList.add('cleared');
@@ -1931,8 +1933,53 @@ function buildFrontierSpecialTiles(regionId, existingSpecialTiles = []) {
   for (let i = 0; i < 5; i += 1) {
     pushTile(pickOne(blocked), 'river');
   }
+  for (let i = 0; i < 2; i += 1) {
+    pushTile(pickOne(blocked), 'burrow');
+  }
 
   return specials;
+}
+
+function triggerWormBurrowCollapse(centerTile) {
+  if (!state.colony) {
+    return;
+  }
+
+  const defense = getColonyDefense(state.colony);
+  if (defense > 75) {
+    addColonyLog(`Worm burrow at ${centerTile.x},${centerTile.y} was contained. Defense held above 75.`, 'good');
+    return;
+  }
+
+  const core = state.colony.core || getRegionCoreTile(state.colony.region);
+  const before = state.colony.territory.length;
+  state.colony.territory = state.colony.territory.filter((tile) => {
+    if (tile.x === core.x && tile.y === core.y) {
+      return true;
+    }
+    const inRange = Math.abs(tile.x - centerTile.x) <= 2 && Math.abs(tile.y - centerTile.y) <= 2;
+    return !inRange;
+  });
+  const destroyed = Math.max(0, before - state.colony.territory.length);
+  addColonyLog(`A worm erupted from burrow ${centerTile.x},${centerTile.y}. Defense below 75 caused ${destroyed} nearby squares to collapse.`, 'bad');
+}
+
+function applyCapturedCampTroops() {
+  if (!state.colony || !Array.isArray(state.colony.specialTiles)) {
+    return;
+  }
+
+  const capturedCamps = state.colony.specialTiles.filter((tile) => tile.type === 'camp' && tile.discovered);
+  if (capturedCamps.length === 0) {
+    return;
+  }
+
+  let gained = 0;
+  for (let i = 0; i < capturedCamps.length; i += 1) {
+    gained += randInt(1, 5);
+  }
+  state.colony.buildings.troops += gained;
+  addColonyLog(`Captured native camps recruited ${gained} troops this cycle.`, 'good');
 }
 
 function resolveTerritoryClaim(tile) {
@@ -1956,6 +2003,8 @@ function resolveTerritoryClaim(tile) {
       addColonyLog(`Native encampment uncovered at ${tile.x},${tile.y}. Frontier war has begun and raids will intensify.`, 'bad');
     } else if (special.type === 'river') {
       addColonyLog(`A fish-rich river was claimed at ${tile.x},${tile.y}. Colony food output is now boosted.`, 'good');
+    } else if (special.type === 'burrow') {
+      triggerWormBurrowCollapse(tile);
     }
   }
 }
@@ -2077,6 +2126,7 @@ function advanceColonyCycle() {
     addColonyLog(`Factories produced ${suppliesProduced} building supplies.`, 'good');
   }
   applySupportColonyEffects();
+  applyCapturedCampTroops();
   advanceTempleSearch();
 
   if (region.id === 'mergi' && colony.buildings.groundAnchors > 0) {
