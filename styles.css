@@ -480,7 +480,7 @@ button:disabled {
 }
 
 .territoryCell.burrow {
-  box-shadow: inset 0 0 0 2px #ff9b4d;
+  box-shadow: inset 0 0 0 2px #8f1f2f;
 }
 
 .territoryCell.cleared {
