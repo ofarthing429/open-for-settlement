@@ -456,7 +456,7 @@ button:disabled {
 
 .mainlandMap {
   display: grid;
-  grid-template-columns: repeat(21, 12px);
+  grid-template-columns: repeat(30, 12px);
   gap: 1px;
   justify-content: center;
   padding: 12px;

@@ -202,14 +202,14 @@ const BUILDING_DATA = {
 };
 
 const MAP_SIZE = 13;
-const MAINLAND_SIZE = 21;
+const MAINLAND_SIZE = 30;
 const MAINLAND_MASK = buildMainlandMask();
 
 function buildMainlandMask() {
   const land = new Set();
   const center = (MAINLAND_SIZE - 1) / 2;
-  const rx = 8.8;
-  const ry = 7.4;
+  const rx = MAINLAND_SIZE * 0.42;
+  const ry = MAINLAND_SIZE * 0.36;
 
   for (let y = 0; y < MAINLAND_SIZE; y += 1) {
     for (let x = 0; x < MAINLAND_SIZE; x += 1) {
@@ -221,9 +221,9 @@ function buildMainlandMask() {
       }
 
       // Carve bays/notches so the island has a clear unique silhouette.
-      const northBay = x >= 8 && x <= 12 && y <= 4;
-      const westNotch = x <= 4 && y >= 7 && y <= 11;
-      const southBite = x >= 11 && x <= 15 && y >= 16;
+      const northBay = x >= Math.floor(MAINLAND_SIZE * 0.38) && x <= Math.floor(MAINLAND_SIZE * 0.56) && y <= Math.floor(MAINLAND_SIZE * 0.2);
+      const westNotch = x <= Math.floor(MAINLAND_SIZE * 0.16) && y >= Math.floor(MAINLAND_SIZE * 0.32) && y <= Math.floor(MAINLAND_SIZE * 0.56);
+      const southBite = x >= Math.floor(MAINLAND_SIZE * 0.52) && x <= Math.floor(MAINLAND_SIZE * 0.74) && y >= Math.floor(MAINLAND_SIZE * 0.76);
       if (northBay || westNotch || southBite) {
         continue;
       }
@@ -233,13 +233,13 @@ function buildMainlandMask() {
   }
 
   // Add two peninsulas.
-  for (let y = 8; y <= 11; y += 1) {
-    for (let x = 16; x <= 19; x += 1) {
+  for (let y = Math.floor(MAINLAND_SIZE * 0.38); y <= Math.floor(MAINLAND_SIZE * 0.52); y += 1) {
+    for (let x = Math.floor(MAINLAND_SIZE * 0.8); x <= MAINLAND_SIZE - 2; x += 1) {
       land.add(`${x},${y}`);
     }
   }
-  for (let y = 13; y <= 15; y += 1) {
-    for (let x = 4; x <= 6; x += 1) {
+  for (let y = Math.floor(MAINLAND_SIZE * 0.62); y <= Math.floor(MAINLAND_SIZE * 0.74); y += 1) {
+    for (let x = Math.floor(MAINLAND_SIZE * 0.18); x <= Math.floor(MAINLAND_SIZE * 0.26); x += 1) {
       land.add(`${x},${y}`);
     }
   }
@@ -2251,13 +2251,13 @@ function renderMainlandMap() {
 
 function getMainlandBiome(x, y) {
   // Simple island biome layout for readability on the takeover grid.
-  if (y <= 7 && x <= 11) {
+  if (y <= Math.floor(MAINLAND_SIZE * 0.34) && x <= Math.floor(MAINLAND_SIZE * 0.52)) {
     return 'forest';
   }
-  if (x >= 13 && y <= 13) {
+  if (x >= Math.floor(MAINLAND_SIZE * 0.62) && y <= Math.floor(MAINLAND_SIZE * 0.62)) {
     return 'flats';
   }
-  if (x <= 9 && y >= 11) {
+  if (x <= Math.floor(MAINLAND_SIZE * 0.46) && y >= Math.floor(MAINLAND_SIZE * 0.52)) {
     return 'mergi';
   }
   return 'capital';
