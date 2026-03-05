@@ -500,6 +500,13 @@ button:disabled {
   box-shadow: inset 0 0 0 1px #b49b66;
 }
 
+.mainlandCell.placeable {
+  outline: 1px solid #e8fcb0;
+  outline-offset: -1px;
+  box-shadow: inset 0 0 0 1px rgba(232, 252, 176, 0.5);
+  cursor: pointer;
+}
+
 .mainlandCell.claimed {
   background: linear-gradient(180deg, #98f57a 0%, #54b55a 100%);
   border-color: #d7f8b4;

@@ -342,6 +342,7 @@ const state = {
   tabletOpen: false,
   marketOpen: false,
   islandOpen: false,
+  pendingPlacement: null,
   marketMessage: 'Walk up to a stall and press E to trade points.',
   marketPos: { x: 480, y: 460 },
   colonyMapOpen: false,
@@ -394,7 +395,7 @@ restartBtn.addEventListener('click', () => {
   state.colonyMapOpen = false;
   state.marketOpen = false;
   state.islandOpen = false;
-  state.islandOpen = false;
+  state.pendingPlacement = null;
   state.colonizeDelayTarget = loadColonizeDelay();
   state.colony = loadStoredColony();
   syncRecordsUi();
@@ -516,6 +517,7 @@ function showSetup() {
   islandTakeoverPanel.classList.add('hidden');
   state.marketOpen = false;
   state.islandOpen = false;
+  state.pendingPlacement = null;
   setupPanel.classList.remove('hidden');
   state.points = loadStoredPoints();
   state.colonizeDelayTarget = loadColonizeDelay();
@@ -1990,6 +1992,21 @@ function buildColonyBuilding(kind) {
     return;
   }
 
+  if (state.colony.mainland && state.colony.mainland.active && kind === 'groundAnchors') {
+    if (state.pendingPlacement) {
+      addColonyLog('Finish the current placement first.', 'bad');
+      syncColonyUi();
+      return;
+    }
+    state.pendingPlacement = { kind, suppliesCost: rules.suppliesCost };
+    addColonyLog('Ground Anchor placement armed. Open Island Takeover and click a valid expansion square.', 'good');
+    addMainlandLog('Placement mode: click an adjacent empty land square to place Ground Anchor.', 'good');
+    if (state.islandOpen) {
+      syncIslandTakeoverUi();
+    }
+    return;
+  }
+
   if (state.colony.mainland && state.colony.mainland.active) {
     const placed = placeMainlandBuildingTile(kind);
     if (!placed) {
@@ -2093,6 +2110,62 @@ function addMainlandLog(text, tone = '') {
   state.colony.mainland.log = state.colony.mainland.log.slice(0, 24);
 }
 
+function canPlaceMainlandExpansionAt(x, y) {
+  if (!state.colony || !state.colony.mainland) {
+    return false;
+  }
+  const key = `${x},${y}`;
+  if (!MAINLAND_MASK.has(key)) {
+    return false;
+  }
+  const mainland = state.colony.mainland;
+  const claimed = new Set(mainland.territory.map((tile) => `${tile.x},${tile.y}`));
+  if (claimed.has(key)) {
+    return false;
+  }
+  const neighbors = getLandNeighbors(x, y);
+  return neighbors.some((tile) => claimed.has(`${tile.x},${tile.y}`));
+}
+
+function handleMainlandCellClick(x, y) {
+  if (!state.pendingPlacement || !state.colony || !state.colony.mainland || !state.colony.mainland.active) {
+    return;
+  }
+  const pending = state.pendingPlacement;
+  if (!canPlaceMainlandExpansionAt(x, y)) {
+    addMainlandLog('Invalid placement: choose an adjacent empty land square.', 'bad');
+    syncIslandTakeoverUi();
+    return;
+  }
+  if (state.colony.supplies < pending.suppliesCost) {
+    addMainlandLog('Placement canceled: not enough supplies anymore.', 'bad');
+    state.pendingPlacement = null;
+    syncColonyUi();
+    syncIslandTakeoverUi();
+    return;
+  }
+  if (state.colony.mainland.actionsLeft <= 0) {
+    addMainlandLog('Placement canceled: no build actions left this cycle.', 'bad');
+    state.pendingPlacement = null;
+    syncColonyUi();
+    syncIslandTakeoverUi();
+    return;
+  }
+
+  state.colony.supplies -= pending.suppliesCost;
+  state.colony.buildings[pending.kind] += 1;
+  state.colony.mainland.actionsLeft = Math.max(0, state.colony.mainland.actionsLeft - 1);
+  state.colony.mainland.territory.push({ x, y });
+  state.colony.mainland.buildingTiles.push({ x, y, kind: pending.kind });
+  resolveMainlandClaim({ x, y });
+  addColonyLog(`${BUILDING_DATA[pending.kind].label} completed at ${x},${y}.`, 'good');
+  addMainlandLog(`Ground Anchor placed at ${x},${y}. Buildings within 2 squares are protected.`, 'good');
+  state.pendingPlacement = null;
+  storeColony();
+  syncColonyUi();
+  syncIslandTakeoverUi();
+}
+
 function placeMainlandBuildingTile(kind) {
   if (!state.colony || !state.colony.mainland) {
     return false;
@@ -2149,6 +2222,16 @@ function removeMainlandBuildingTile(tile, reason = '') {
   addMainlandLog(`${label} at ${tile.x},${tile.y} was destroyed${reason ? ` by ${reason}` : ''}.`, 'bad');
 }
 
+function isTileProtectedByGroundAnchor(tile) {
+  if (!state.colony || !state.colony.mainland || !tile) {
+    return false;
+  }
+  const anchors = (state.colony.mainland.buildingTiles || []).filter((entry) => entry.kind === 'groundAnchors');
+  return anchors.some((anchor) => (
+    Math.abs(anchor.x - tile.x) <= 2 && Math.abs(anchor.y - tile.y) <= 2
+  ));
+}
+
 function destroyRandomMainlandBuilding(reason = 'hazards') {
   if (!state.colony || !state.colony.mainland) {
     return false;
@@ -2157,8 +2240,12 @@ function destroyRandomMainlandBuilding(reason = 'hazards') {
   if (!Array.isArray(mainland.buildingTiles) || mainland.buildingTiles.length === 0) {
     return false;
   }
-  const index = randInt(0, mainland.buildingTiles.length - 1);
-  const tile = mainland.buildingTiles[index];
+  const vulnerable = mainland.buildingTiles.filter((tile) => !isTileProtectedByGroundAnchor(tile));
+  if (vulnerable.length === 0) {
+    addMainlandLog('Ground Anchor network held. No building was lost.', 'good');
+    return false;
+  }
+  const tile = vulnerable[randInt(0, vulnerable.length - 1)];
   removeMainlandBuildingTile(tile, reason);
   return true;
 }
@@ -2174,7 +2261,9 @@ function triggerMainlandBurrowCollapse(centerTile) {
   }
   const mainland = state.colony.mainland;
   const doomed = mainland.buildingTiles.filter((tile) => (
-    Math.abs(tile.x - centerTile.x) <= 2 && Math.abs(tile.y - centerTile.y) <= 2
+    Math.abs(tile.x - centerTile.x) <= 2
+    && Math.abs(tile.y - centerTile.y) <= 2
+    && !isTileProtectedByGroundAnchor(tile)
   ));
   if (doomed.length === 0) {
     addMainlandLog(`Worm burrow at ${centerTile.x},${centerTile.y} opened, but hit empty ground.`, 'bad');
@@ -2223,6 +2312,9 @@ function renderMainlandMap() {
         mainlandMap.appendChild(cell);
         continue;
       }
+      if (state.pendingPlacement && canPlaceMainlandExpansionAt(x, y)) {
+        cell.classList.add('placeable');
+      }
       cell.classList.add(`biome-${getMainlandBiome(x, y)}`);
       const deltas = [
         [1, 0],
@@ -2247,6 +2339,7 @@ function renderMainlandMap() {
       if (x === mainland.core.x && y === mainland.core.y) {
         cell.classList.add('core');
       }
+      cell.addEventListener('click', () => handleMainlandCellClick(x, y));
       mainlandMap.appendChild(cell);
     }
   }
@@ -2371,8 +2464,12 @@ function advanceCoralCorruptors() {
     // Corruptor directly destroys any building on its tile.
     const localBuilding = (mainland.buildingTiles || []).find((tile) => tile.x === node.x && tile.y === node.y);
     if (localBuilding) {
-      removeMainlandBuildingTile(localBuilding, 'coral corruptor');
-      destroyedCount += 1;
+      if (isTileProtectedByGroundAnchor(localBuilding)) {
+        addMainlandLog(`Corruptor at ${node.x},${node.y} was blocked by Ground Anchor coverage.`, 'good');
+      } else {
+        removeMainlandBuildingTile(localBuilding, 'coral corruptor');
+        destroyedCount += 1;
+      }
     }
 
     if (Math.random() < 0.48) {
@@ -2393,8 +2490,12 @@ function advanceCoralCorruptors() {
 
         const hitBuilding = (mainland.buildingTiles || []).find((tile) => tile.x === chosen.x && tile.y === chosen.y);
         if (hitBuilding) {
-          removeMainlandBuildingTile(hitBuilding, 'coral corruptor spread');
-          destroyedCount += 1;
+          if (isTileProtectedByGroundAnchor(hitBuilding)) {
+            addMainlandLog(`Corruptor spread at ${chosen.x},${chosen.y} was blocked by Ground Anchor coverage.`, 'good');
+          } else {
+            removeMainlandBuildingTile(hitBuilding, 'coral corruptor spread');
+            destroyedCount += 1;
+          }
         }
       }
     }
@@ -3297,8 +3398,16 @@ function resolveRegionCycleEvents(region, cycleIssues) {
         colony.supplies = Math.max(0, colony.supplies - supplyLoss);
         addColonyLog(`Sinking Dunes rolled through the Mergi lanes. Supplies -${supplyLoss}, stability -${stabilityLoss}.`, 'bad');
         if (Math.random() < 0.4) {
-          destroyRandomColonyBuilding();
-          addColonyLog('A building was swallowed by the Sinking Dunes.', 'bad');
+          if (colony.mainland && colony.mainland.active && Array.isArray(colony.mainland.buildingTiles) && colony.mainland.buildingTiles.length > 0) {
+            if (destroyRandomMainlandBuilding('Sinking Dunes')) {
+              addColonyLog('A mainland building square was swallowed by the Sinking Dunes.', 'bad');
+            } else {
+              addColonyLog('Sinking Dunes hit, but Ground Anchor coverage kept mainland buildings safe.', 'good');
+            }
+          } else {
+            destroyRandomColonyBuilding();
+            addColonyLog('A building was swallowed by the Sinking Dunes.', 'bad');
+          }
         }
         cycleIssues.push('sinking dunes');
       } else {
