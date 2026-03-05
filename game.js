@@ -181,6 +181,8 @@ const BUILDING_DATA = {
   groundAnchors: { label: 'Ground Anchor', suppliesCost: 55 },
 };
 
+const MAP_SIZE = 13;
+
 const REGION_MASKS = {
   forest: new Set([
     '1,1', '2,1', '3,1', '4,1', '5,1',
@@ -1063,6 +1065,8 @@ function createColonyState(regionId, overrides = {}) {
     core,
     territory: [core],
     specialTiles: buildSpecialTilesForRegion(regionId, core),
+    frontierUnlocked: false,
+    frontierWar: false,
     supportColonies: [],
     explorer: {
       unlocked: false,
@@ -1081,6 +1085,19 @@ function createColonyState(regionId, overrides = {}) {
     lastInstabilityCauses: [],
     log: [],
     ...overrides,
+  };
+}
+
+function normalizeBuildings(buildings = {}) {
+  return {
+    farms: Number.isFinite(buildings.farms) ? buildings.farms : 1,
+    powerPlants: Number.isFinite(buildings.powerPlants) ? buildings.powerPlants : 1,
+    mines: Number.isFinite(buildings.mines) ? buildings.mines : 1,
+    factories: Number.isFinite(buildings.factories) ? buildings.factories : 0,
+    businessHouses: Number.isFinite(buildings.businessHouses) ? buildings.businessHouses : 0,
+    storageHouses: Number.isFinite(buildings.storageHouses) ? buildings.storageHouses : 1,
+    barracks: Number.isFinite(buildings.barracks) ? buildings.barracks : 0,
+    groundAnchors: Number.isFinite(buildings.groundAnchors) ? buildings.groundAnchors : 0,
   };
 }
 
@@ -1115,8 +1132,7 @@ function loadStoredColony() {
     const regionSet = REGION_MASKS[parsed.region] || new Set();
     const defaultCore = getRegionCoreTile(parsed.region);
     parsed.powerDemand = Number.isFinite(parsed.powerDemand) ? parsed.powerDemand : 0;
-    parsed.buildings.businessHouses = Number.isFinite(parsed.buildings.businessHouses) ? parsed.buildings.businessHouses : 0;
-    parsed.buildings.groundAnchors = Number.isFinite(parsed.buildings.groundAnchors) ? parsed.buildings.groundAnchors : 0;
+    parsed.buildings = normalizeBuildings(parsed.buildings || {});
     parsed.core = parsed.core && regionSet.has(`${parsed.core.x},${parsed.core.y}`)
       ? parsed.core
       : defaultCore;
@@ -1133,29 +1149,25 @@ function loadStoredColony() {
     parsed.specialTiles = Array.isArray(parsed.specialTiles)
       ? parsed.specialTiles
       : buildSpecialTilesForRegion(parsed.region, parsed.core);
+    parsed.frontierUnlocked = Boolean(parsed.frontierUnlocked);
+    parsed.frontierWar = Boolean(parsed.frontierWar);
     parsed.supportColonies = Array.isArray(parsed.supportColonies)
       ? parsed.supportColonies
         .filter((colony) => colony && REGION_DATA[colony.region])
         .map((colony) => {
           if (Array.isArray(colony.territory) && colony.territory.length > 0) {
+            colony.buildings = normalizeBuildings(colony.buildings || {});
             return colony;
           }
           const migrated = createColonyState(colony.region, {
             cycle: Number.isFinite(colony.cycle) ? colony.cycle : 0,
-            buildings: {
-              farms: colony.buildings?.farms || 1,
-              powerPlants: colony.buildings?.powerPlants || 1,
-              mines: colony.buildings?.mines || 1,
-              factories: colony.buildings?.factories || 0,
-              businessHouses: colony.buildings?.businessHouses || 0,
-              storageHouses: colony.buildings?.storageHouses || 1,
-              barracks: colony.buildings?.barracks || 0,
-              groundAnchors: colony.buildings?.groundAnchors || 0,
-            },
+            buildings: normalizeBuildings(colony.buildings || {}),
             food: 140,
             supplies: 150,
             plutonium: 18,
             techBoost: Boolean(colony.techBoost),
+            frontierUnlocked: Boolean(colony.frontierUnlocked),
+            frontierWar: Boolean(colony.frontierWar),
             log: [{ text: `${REGION_DATA[colony.region].name} support colony preserved from older campaign data.`, tone: '' }],
           });
           return migrated;
@@ -1369,6 +1381,8 @@ function snapshotSupportColony(colony) {
     core: cloneColonyData(colony.core),
     territory: cloneColonyData(colony.territory),
     specialTiles: cloneColonyData(colony.specialTiles),
+    frontierUnlocked: Boolean(colony.frontierUnlocked),
+    frontierWar: Boolean(colony.frontierWar),
     explorer: cloneColonyData(colony.explorer),
     templeSearch: cloneColonyData(colony.templeSearch),
     techBoost: Boolean(colony.techBoost),
@@ -1700,8 +1714,8 @@ function syncTerritoryMap() {
   const specials = new Map((state.colony.specialTiles || []).map((tile) => [`${tile.x},${tile.y}`, tile]));
   territoryMap.innerHTML = '';
 
-  for (let y = 0; y < 13; y += 1) {
-    for (let x = 0; x < 13; x += 1) {
+  for (let y = 0; y < MAP_SIZE; y += 1) {
+    for (let x = 0; x < MAP_SIZE; x += 1) {
       const cell = document.createElement('div');
       cell.className = 'territoryCell';
       const key = `${x},${y}`;
@@ -1713,7 +1727,15 @@ function syncTerritoryMap() {
       }
       const special = specials.get(key);
       if (special) {
-        cell.classList.add(special.type === 'copper' ? 'copper' : 'hive');
+        if (special.type === 'copper') {
+          cell.classList.add('copper');
+        } else if (special.type === 'hive') {
+          cell.classList.add('hive');
+        } else if (special.type === 'camp') {
+          cell.classList.add('camp');
+        } else if (special.type === 'river') {
+          cell.classList.add('river');
+        }
         if (special.cleared) {
           cell.classList.add('cleared');
         }
@@ -1732,6 +1754,13 @@ function expandColonyTerritory() {
   }
 
   const regionSet = REGION_MASKS[state.colony.region];
+  if (!state.colony.frontierUnlocked && isRegionFullyClaimed(state.colony)) {
+    state.colony.frontierUnlocked = true;
+    const newFrontierSpecials = buildFrontierSpecialTiles(state.colony.region, state.colony.specialTiles || []);
+    state.colony.specialTiles = [...(state.colony.specialTiles || []), ...newFrontierSpecials];
+    addColonyLog('Regional borders are secured. Frontier expansion beyond the zone is now unlocked.', 'good');
+  }
+  const enforceRegionBoundary = !state.colony.frontierUnlocked;
   const occupied = new Set(state.colony.territory.map((tile) => `${tile.x},${tile.y}`));
   const candidates = [];
   const deltas = [
@@ -1746,10 +1775,10 @@ function expandColonyTerritory() {
       const nx = tile.x + delta.x;
       const ny = tile.y + delta.y;
       const key = `${nx},${ny}`;
-      if (nx < 0 || nx > 12 || ny < 0 || ny > 12 || occupied.has(key)) {
+      if (nx < 0 || nx >= MAP_SIZE || ny < 0 || ny >= MAP_SIZE || occupied.has(key)) {
         continue;
       }
-      if (regionSet && !regionSet.has(key)) {
+      if (enforceRegionBoundary && regionSet && !regionSet.has(key)) {
         continue;
       }
       if (!candidates.some((item) => item.x === nx && item.y === ny)) {
@@ -1759,8 +1788,11 @@ function expandColonyTerritory() {
   }
 
   if (candidates.length === 0) {
-    if (regionSet) {
-      const remaining = [...regionSet]
+    const boundarySet = enforceRegionBoundary && regionSet
+      ? [...regionSet]
+      : Array.from({ length: MAP_SIZE * MAP_SIZE }, (_, idx) => `${idx % MAP_SIZE},${Math.floor(idx / MAP_SIZE)}`);
+    if (boundarySet.length > 0) {
+      const remaining = boundarySet
         .filter((key) => !occupied.has(key))
         .map((key) => {
           const [x, y] = key.split(',').map(Number);
@@ -1836,6 +1868,54 @@ function buildSpecialTilesForRegion(regionId, core = getRegionCoreTile(regionId)
   return specials;
 }
 
+function buildFrontierSpecialTiles(regionId, existingSpecialTiles = []) {
+  const regionSet = REGION_MASKS[regionId] || new Set();
+  const used = new Set(existingSpecialTiles.map((tile) => `${tile.x},${tile.y}`));
+  const frontierTiles = [];
+  for (let y = 0; y < MAP_SIZE; y += 1) {
+    for (let x = 0; x < MAP_SIZE; x += 1) {
+      const key = `${x},${y}`;
+      if (!regionSet.has(key) && !used.has(key)) {
+        frontierTiles.push({ x, y });
+      }
+    }
+  }
+  if (frontierTiles.length === 0) {
+    return [];
+  }
+
+  const pickOne = (blocked = new Set()) => {
+    const pool = frontierTiles.filter((tile) => !blocked.has(`${tile.x},${tile.y}`));
+    return pool.length > 0 ? pool[randInt(0, pool.length - 1)] : null;
+  };
+
+  const blocked = new Set();
+  const specials = [];
+  const pushTile = (tile, type) => {
+    if (!tile) {
+      return;
+    }
+    blocked.add(`${tile.x},${tile.y}`);
+    specials.push({ x: tile.x, y: tile.y, type, cleared: false, discovered: false, bugsRemaining: 0 });
+  };
+
+  // Frontier has more danger and more resources.
+  for (let i = 0; i < 3; i += 1) {
+    pushTile(pickOne(blocked), 'copper');
+  }
+  for (let i = 0; i < 4; i += 1) {
+    pushTile(pickOne(blocked), 'hive');
+  }
+  for (let i = 0; i < 3; i += 1) {
+    pushTile(pickOne(blocked), 'camp');
+  }
+  for (let i = 0; i < 5; i += 1) {
+    pushTile(pickOne(blocked), 'river');
+  }
+
+  return specials;
+}
+
 function resolveTerritoryClaim(tile) {
   if (!state.colony || !Array.isArray(state.colony.specialTiles)) {
     return;
@@ -1852,6 +1932,11 @@ function resolveTerritoryClaim(tile) {
       const bugs = randInt(12, 32);
       special.bugsRemaining = bugs;
       addColonyLog(`Nibblorax Hive uncovered at ${tile.x},${tile.y}. ${bugs} bugs poured into the colony lanes.`, 'bad');
+    } else if (special.type === 'camp') {
+      state.colony.frontierWar = true;
+      addColonyLog(`Native encampment uncovered at ${tile.x},${tile.y}. Frontier war has begun and raids will intensify.`, 'bad');
+    } else if (special.type === 'river') {
+      addColonyLog(`A fish-rich river was claimed at ${tile.x},${tile.y}. Colony food output is now boosted.`, 'good');
     }
   }
 }
@@ -1956,11 +2041,18 @@ function advanceColonyCycle() {
   }
 
   const foodProduced = Math.round(colony.buildings.farms * 18 * region.foodMult * powerRatio * buildingBoost);
+  const hasRiverAccess = Array.isArray(colony.specialTiles)
+    && colony.specialTiles.some((tile) => tile.type === 'river' && colony.territory.some((t) => t.x === tile.x && t.y === tile.y));
+  const finalFoodProduced = hasRiverAccess ? foodProduced * 2 : foodProduced;
   const suppliesProduced = Math.round(colony.buildings.factories * 10 * region.factoryMult * powerRatio * buildingBoost);
-  colony.food += foodProduced;
+  colony.food += finalFoodProduced;
   colony.supplies += suppliesProduced;
-  if (foodProduced > 0) {
-    addColonyLog(`Farms produced ${foodProduced} food.`, 'good');
+  if (finalFoodProduced > 0) {
+    if (hasRiverAccess) {
+      addColonyLog(`Farms and river fishing produced ${finalFoodProduced} food.`, 'good');
+    } else {
+      addColonyLog(`Farms produced ${finalFoodProduced} food.`, 'good');
+    }
   }
   if (suppliesProduced > 0) {
     addColonyLog(`Factories produced ${suppliesProduced} building supplies.`, 'good');
@@ -2030,7 +2122,8 @@ function resolveRegionCycleEvents(region, cycleIssues) {
   const colony = state.colony;
   const defense = colony.buildings.barracks * 2 * getBuildingBoost(colony);
 
-  if (region.id !== 'capital' && Math.random() < 0.28) {
+  const raidChance = region.id !== 'capital' ? (colony.frontierWar ? 0.56 : 0.28) : 0;
+  if (region.id !== 'capital' && Math.random() < raidChance) {
     const tribeTroops = randInt(0, Math.max(0, defense * 2));
     if (tribeTroops > 0) {
       if (defense >= tribeTroops) {
