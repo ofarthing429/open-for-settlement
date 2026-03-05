@@ -203,6 +203,49 @@ const BUILDING_DATA = {
 
 const MAP_SIZE = 13;
 const MAINLAND_SIZE = 21;
+const MAINLAND_MASK = buildMainlandMask();
+
+function buildMainlandMask() {
+  const land = new Set();
+  const center = (MAINLAND_SIZE - 1) / 2;
+  const rx = 8.8;
+  const ry = 7.4;
+
+  for (let y = 0; y < MAINLAND_SIZE; y += 1) {
+    for (let x = 0; x < MAINLAND_SIZE; x += 1) {
+      const nx = (x - center) / rx;
+      const ny = (y - center) / ry;
+      const ellipse = (nx * nx) + (ny * ny) <= 1;
+      if (!ellipse) {
+        continue;
+      }
+
+      // Carve bays/notches so the island has a clear unique silhouette.
+      const northBay = x >= 8 && x <= 12 && y <= 4;
+      const westNotch = x <= 4 && y >= 7 && y <= 11;
+      const southBite = x >= 11 && x <= 15 && y >= 16;
+      if (northBay || westNotch || southBite) {
+        continue;
+      }
+
+      land.add(`${x},${y}`);
+    }
+  }
+
+  // Add two peninsulas.
+  for (let y = 8; y <= 11; y += 1) {
+    for (let x = 16; x <= 19; x += 1) {
+      land.add(`${x},${y}`);
+    }
+  }
+  for (let y = 13; y <= 15; y += 1) {
+    for (let x = 4; x <= 6; x += 1) {
+      land.add(`${x},${y}`);
+    }
+  }
+
+  return land;
+}
 
 const REGION_MASKS = {
   forest: new Set([
@@ -1164,12 +1207,17 @@ function createMainlandState() {
 function buildMainlandSpecialTiles(core) {
   const tiles = [];
   const used = new Set([`${core.x},${core.y}`]);
+  const mainlandTiles = [...MAINLAND_MASK].map((key) => {
+    const [x, y] = key.split(',').map(Number);
+    return { x, y };
+  }).filter((tile) => !(tile.x === core.x && tile.y === core.y));
   const pushRandom = (type, count) => {
     for (let i = 0; i < count; i += 1) {
       let tries = 0;
       while (tries < 80) {
-        const x = randInt(0, MAINLAND_SIZE - 1);
-        const y = randInt(0, MAINLAND_SIZE - 1);
+        const pick = mainlandTiles[randInt(0, mainlandTiles.length - 1)];
+        const x = pick.x;
+        const y = pick.y;
         const key = `${x},${y}`;
         if (!used.has(key)) {
           used.add(key);
@@ -1218,10 +1266,7 @@ function normalizeMainlandState(mainland) {
       .map((tile) => ({ x: tile.x, y: tile.y }))
     : [parsed.core];
   parsed.territory = parsed.territory.filter((tile, index, arr) => (
-    tile.x >= 0
-    && tile.x < MAINLAND_SIZE
-    && tile.y >= 0
-    && tile.y < MAINLAND_SIZE
+    MAINLAND_MASK.has(`${tile.x},${tile.y}`)
     && arr.findIndex((entry) => entry.x === tile.x && entry.y === tile.y) === index
   ));
   if (!parsed.territory.some((tile) => tile.x === parsed.core.x && tile.y === parsed.core.y)) {
@@ -1238,7 +1283,7 @@ function normalizeMainlandState(mainland) {
   ));
   parsed.specialTiles = Array.isArray(parsed.specialTiles)
     ? parsed.specialTiles
-      .filter((tile) => Number.isFinite(tile.x) && Number.isFinite(tile.y))
+      .filter((tile) => Number.isFinite(tile.x) && Number.isFinite(tile.y) && MAINLAND_MASK.has(`${tile.x},${tile.y}`))
       .map((tile) => ({
         x: tile.x,
         y: tile.y,
@@ -2060,12 +2105,12 @@ function placeMainlandBuildingTile(kind) {
   const candidates = [];
   for (const tile of mainland.territory) {
     for (const delta of deltas) {
-      const nx = tile.x + delta.x;
-      const ny = tile.y + delta.y;
-      const key = `${nx},${ny}`;
-      if (nx < 0 || nx >= MAINLAND_SIZE || ny < 0 || ny >= MAINLAND_SIZE || claimed.has(key)) {
-        continue;
-      }
+        const nx = tile.x + delta.x;
+        const ny = tile.y + delta.y;
+        const key = `${nx},${ny}`;
+        if (nx < 0 || nx >= MAINLAND_SIZE || ny < 0 || ny >= MAINLAND_SIZE || claimed.has(key) || !MAINLAND_MASK.has(key)) {
+          continue;
+        }
       if (!candidates.some((item) => item.x === nx && item.y === ny)) {
         candidates.push({ x: nx, y: ny });
       }
@@ -2169,6 +2214,22 @@ function renderMainlandMap() {
       const cell = document.createElement('div');
       cell.className = 'mainlandCell';
       const key = `${x},${y}`;
+      const isLand = MAINLAND_MASK.has(key);
+      if (!isLand) {
+        cell.classList.add('water');
+        mainlandMap.appendChild(cell);
+        continue;
+      }
+      const deltas = [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ];
+      const coast = deltas.some(([dx, dy]) => !MAINLAND_MASK.has(`${x + dx},${y + dy}`));
+      if (coast) {
+        cell.classList.add('coast');
+      }
       if (claimed.has(key)) {
         cell.classList.add('claimed');
       }

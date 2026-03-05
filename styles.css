@@ -472,6 +472,17 @@ button:disabled {
   background: #15131a;
 }
 
+.mainlandCell.water {
+  background:
+    radial-gradient(circle at 35% 35%, rgba(185, 123, 255, 0.34) 0%, rgba(185, 123, 255, 0) 58%),
+    linear-gradient(180deg, #2f1853 0%, #1f123a 100%);
+  border-color: #50306f;
+}
+
+.mainlandCell.coast {
+  box-shadow: inset 0 0 0 1px #b49b66;
+}
+
 .mainlandCell.claimed {
   background: linear-gradient(180deg, #98f57a 0%, #54b55a 100%);
   border-color: #d7f8b4;
