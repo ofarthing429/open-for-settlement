@@ -241,6 +241,7 @@
           <footer class="controls">
             <button id="advanceColonyBtn">Advance Colony Cycle</button>
             <button id="openColonyMapBtn">Map</button>
+            <button id="openCapitalMarketBtn">Capital Market</button>
             <button id="backToSetupBtn">Back To Setup</button>
           </footer>
 
@@ -327,6 +328,30 @@
         <div id="territoryMap" class="territoryMap"></div>
         <button id="closeColonyMapBtn">Close Map</button>
       </div>
+    </section>
+
+    <section id="capitalMarketPanel" class="panel hidden">
+      <header class="hud">
+        <div class="leftHud">
+          <div>Native Capital Market</div>
+          <div>Points: <span id="marketPointsValue">0</span></div>
+        </div>
+        <div class="leftHud">
+          <div>Move: WASD / Arrows</div>
+          <div>Trade: E</div>
+          <div>Exit: Esc</div>
+        </div>
+      </header>
+      <section class="marketFrame">
+        <canvas id="marketCanvas" width="960" height="520"></canvas>
+      </section>
+      <section class="logPanel">
+        <h2>Market Notice</h2>
+        <div id="marketNotice" class="log"></div>
+      </section>
+      <footer class="controls">
+        <button id="closeCapitalMarketBtn">Back To Colony</button>
+      </footer>
     </section>
   </main>
 

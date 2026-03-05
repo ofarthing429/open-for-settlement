@@ -51,11 +51,17 @@ const colonyRegionFlavor = document.getElementById('colonyRegionFlavor');
 const colonyBuildViz = document.getElementById('colonyBuildViz');
 const advanceColonyBtn = document.getElementById('advanceColonyBtn');
 const openColonyMapBtn = document.getElementById('openColonyMapBtn');
+const openCapitalMarketBtn = document.getElementById('openCapitalMarketBtn');
 const backToSetupBtn = document.getElementById('backToSetupBtn');
 const colonyLog = document.getElementById('colonyLog');
 const colonyTerritoryPanel = document.getElementById('colonyTerritoryPanel');
 const territoryMap = document.getElementById('territoryMap');
 const closeColonyMapBtn = document.getElementById('closeColonyMapBtn');
+const capitalMarketPanel = document.getElementById('capitalMarketPanel');
+const marketCanvas = document.getElementById('marketCanvas');
+const marketNotice = document.getElementById('marketNotice');
+const marketPointsValue = document.getElementById('marketPointsValue');
+const closeCapitalMarketBtn = document.getElementById('closeCapitalMarketBtn');
 const farmCount = document.getElementById('farmCount');
 const powerPlantCount = document.getElementById('powerPlantCount');
 const mineCount = document.getElementById('mineCount');
@@ -113,6 +119,8 @@ const log = document.getElementById('log');
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
+const marketCtx = marketCanvas.getContext('2d');
+marketCtx.imageSmoothingEnabled = false;
 
 const POINTS_STORAGE_KEY = 'black-sand-colony-run-points';
 const MAX_HP_STORAGE_KEY = 'black-sand-colony-run-max-hp';
@@ -231,6 +239,14 @@ const TABLETS = {
   },
 };
 
+const CAPITAL_MARKET_STALLS = [
+  { id: 'rations', name: 'Ration Stall', x: 170, y: 130, cost: 12, desc: '+60 Food' },
+  { id: 'supplies', name: 'Supply Yard', x: 450, y: 110, cost: 15, desc: '+50 Supplies' },
+  { id: 'fuel', name: 'Fuel Broker', x: 740, y: 130, cost: 14, desc: '+30 Plutonium' },
+  { id: 'troops', name: 'Contract Post', x: 300, y: 355, cost: 20, desc: '+5 Troops' },
+  { id: 'stability', name: 'Medic Guild', x: 650, y: 355, cost: 18, desc: '+10 Stability' },
+];
+
 const state = {
   running: false,
   gameOver: false,
@@ -271,6 +287,9 @@ const state = {
   traderSellOffers: [],
   traderOpen: false,
   tabletOpen: false,
+  marketOpen: false,
+  marketMessage: 'Walk up to a stall and press E to trade points.',
+  marketPos: { x: 480, y: 460 },
   colonyMapOpen: false,
   colonizeDelayTarget: 0,
   colony: null,
@@ -314,9 +333,11 @@ restartBtn.addEventListener('click', () => {
   nativeTraderPanel.classList.add('hidden');
   tabletPanel.classList.add('hidden');
   colonyTerritoryPanel.classList.add('hidden');
+  capitalMarketPanel.classList.add('hidden');
   state.traderOpen = false;
   state.tabletOpen = false;
   state.colonyMapOpen = false;
+  state.marketOpen = false;
   state.colonizeDelayTarget = loadColonizeDelay();
   state.colony = loadStoredColony();
   syncRecordsUi();
@@ -344,10 +365,13 @@ manageColonyBtn.addEventListener('click', showColonyPanel);
 cancelColonizeBtn.addEventListener('click', showSetup);
 advanceColonyBtn.addEventListener('click', advanceColonyCycle);
 openColonyMapBtn.addEventListener('click', openColonyTerritoryMap);
+openCapitalMarketBtn.addEventListener('click', openCapitalMarket);
 backToSetupBtn.addEventListener('click', showSetup);
 closeColonyMapBtn.addEventListener('click', closeColonyTerritoryMap);
+closeCapitalMarketBtn.addEventListener('click', closeCapitalMarket);
 startTempleSearchBtn.addEventListener('click', startTempleSearch);
 readWallRiddleBtn.addEventListener('click', openTempleRiddleReader);
+window.addEventListener('keydown', handleCapitalMarketKeydown);
 
 function startGame() {
   const chosenFood = Number(foodInput.value);
@@ -393,6 +417,7 @@ function startGame() {
   state.traderOpen = false;
   state.tabletOpen = false;
   state.colonyMapOpen = false;
+  state.marketOpen = false;
 
   titlePanel.classList.add('hidden');
   setupPanel.classList.add('hidden');
@@ -402,6 +427,7 @@ function startGame() {
   nativeTraderPanel.classList.add('hidden');
   tabletPanel.classList.add('hidden');
   colonyTerritoryPanel.classList.add('hidden');
+  capitalMarketPanel.classList.add('hidden');
   nextTurnBtn.disabled = false;
 
   log.innerHTML = '';
@@ -424,6 +450,8 @@ function showSetup() {
   nativeTraderPanel.classList.add('hidden');
   tabletPanel.classList.add('hidden');
   colonyTerritoryPanel.classList.add('hidden');
+  capitalMarketPanel.classList.add('hidden');
+  state.marketOpen = false;
   setupPanel.classList.remove('hidden');
   state.points = loadStoredPoints();
   state.colonizeDelayTarget = loadColonizeDelay();
@@ -948,6 +976,8 @@ function openColonyMap() {
   colonyPanel.classList.add('hidden');
   nativeTraderPanel.classList.add('hidden');
   tabletPanel.classList.add('hidden');
+  capitalMarketPanel.classList.add('hidden');
+  state.marketOpen = false;
   colonyMapPanel.classList.remove('hidden');
   renderRegionGrid();
   colonyMapPanel.scrollIntoView({ block: 'start' });
@@ -1135,6 +1165,8 @@ function showColonyPanel() {
   colonyMapPanel.classList.add('hidden');
   nativeTraderPanel.classList.add('hidden');
   tabletPanel.classList.add('hidden');
+  capitalMarketPanel.classList.add('hidden');
+  state.marketOpen = false;
   colonyPanel.classList.remove('hidden');
   syncColonyUi();
   colonyPanel.scrollIntoView({ block: 'start' });
@@ -1658,6 +1690,7 @@ function syncColonyUi() {
   buildBarracksBtn.disabled = state.colony.supplies < BUILDING_DATA.barracks.suppliesCost;
   buildTroopBtn.disabled = state.colony.supplies < BUILDING_DATA.troops.suppliesCost;
   buildGroundAnchorBtn.disabled = state.colony.supplies < BUILDING_DATA.groundAnchors.suppliesCost;
+  openCapitalMarketBtn.disabled = state.colony.region !== 'capital';
 }
 
 function syncColonyBuildViz() {
@@ -1747,6 +1780,173 @@ function openColonyTerritoryMap() {
 function closeColonyTerritoryMap() {
   state.colonyMapOpen = false;
   colonyTerritoryPanel.classList.add('hidden');
+}
+
+function openCapitalMarket() {
+  if (!state.colony || !state.colony.active) {
+    return;
+  }
+  if (state.colony.region !== 'capital') {
+    addColonyLog('Native Capital market access is only available while commanding a colony in Native Capital.', 'bad');
+    syncColonyUi();
+    return;
+  }
+
+  state.marketOpen = true;
+  state.marketPos = { x: 480, y: 460 };
+  state.marketMessage = 'Walk to a stall and press E to trade points.';
+  colonyPanel.classList.add('hidden');
+  colonyTerritoryPanel.classList.add('hidden');
+  capitalMarketPanel.classList.remove('hidden');
+  syncMarketUi();
+}
+
+function closeCapitalMarket() {
+  state.marketOpen = false;
+  capitalMarketPanel.classList.add('hidden');
+  showColonyPanel();
+}
+
+function getNearbyMarketStall() {
+  const px = state.marketPos.x;
+  const py = state.marketPos.y;
+  let best = null;
+  let bestDist = Infinity;
+  for (const stall of CAPITAL_MARKET_STALLS) {
+    const cx = stall.x;
+    const cy = stall.y;
+    const dist = Math.hypot(px - cx, py - cy);
+    if (dist < 52 && dist < bestDist) {
+      best = stall;
+      bestDist = dist;
+    }
+  }
+  return best;
+}
+
+function attemptMarketTrade(stall) {
+  if (!state.colony || !state.colony.active || !stall) {
+    return;
+  }
+  if (state.points < stall.cost) {
+    state.marketMessage = `Not enough points for ${stall.name}. Need ${stall.cost}.`;
+    syncMarketUi();
+    return;
+  }
+
+  state.points -= stall.cost;
+  if (stall.id === 'rations') {
+    state.colony.food += 60;
+  } else if (stall.id === 'supplies') {
+    state.colony.supplies += 50;
+  } else if (stall.id === 'fuel') {
+    state.colony.plutonium += 30;
+  } else if (stall.id === 'troops') {
+    state.colony.buildings.troops += 5;
+  } else if (stall.id === 'stability') {
+    state.colony.stability = Math.min(100, state.colony.stability + 10);
+  }
+  state.marketMessage = `Traded ${stall.cost} points at ${stall.name}. ${stall.desc}.`;
+  addColonyLog(`Traded ${stall.cost} points at ${stall.name}. ${stall.desc}.`, 'good');
+  storePoints();
+  storeColony();
+  syncHud();
+  syncColonyUi();
+  syncMarketUi();
+}
+
+function syncMarketUi() {
+  if (!state.marketOpen) {
+    return;
+  }
+  marketPointsValue.textContent = String(state.points);
+  const nearby = getNearbyMarketStall();
+  const lines = [
+    state.marketMessage,
+    nearby
+      ? `Nearby: ${nearby.name} (${nearby.desc}) for ${nearby.cost} points. Press E to trade.`
+      : 'No stall nearby. Move closer to a market tent.',
+  ];
+  marketNotice.innerHTML = '';
+  for (const line of lines) {
+    const p = document.createElement('p');
+    p.className = 'logEntry';
+    p.textContent = line;
+    marketNotice.appendChild(p);
+  }
+  drawCapitalMarket();
+}
+
+function drawCapitalMarket() {
+  if (!state.marketOpen) {
+    return;
+  }
+  const w = marketCanvas.width;
+  const h = marketCanvas.height;
+  marketCtx.clearRect(0, 0, w, h);
+
+  marketCtx.fillStyle = '#151a26';
+  marketCtx.fillRect(0, 0, w, h);
+  marketCtx.fillStyle = '#2b2136';
+  marketCtx.fillRect(28, 24, w - 56, h - 48);
+
+  for (const stall of CAPITAL_MARKET_STALLS) {
+    marketCtx.fillStyle = '#60418f';
+    marketCtx.fillRect(stall.x - 32, stall.y - 22, 64, 44);
+    marketCtx.fillStyle = '#9eff90';
+    marketCtx.fillRect(stall.x - 30, stall.y - 38, 60, 12);
+    marketCtx.fillStyle = '#12151d';
+    marketCtx.font = '12px Trebuchet MS';
+    marketCtx.fillText(stall.name, stall.x - 28, stall.y + 4);
+  }
+
+  marketCtx.fillStyle = '#f4d88c';
+  marketCtx.fillRect(state.marketPos.x - 8, state.marketPos.y - 8, 16, 16);
+  marketCtx.strokeStyle = '#23180f';
+  marketCtx.strokeRect(state.marketPos.x - 8, state.marketPos.y - 8, 16, 16);
+}
+
+function handleCapitalMarketKeydown(event) {
+  if (!state.marketOpen) {
+    return;
+  }
+  const key = event.key.toLowerCase();
+  if (key === 'escape') {
+    event.preventDefault();
+    closeCapitalMarket();
+    return;
+  }
+
+  const step = 18;
+  let moved = false;
+  if (key === 'arrowup' || key === 'w') {
+    state.marketPos.y = Math.max(26, state.marketPos.y - step);
+    moved = true;
+  } else if (key === 'arrowdown' || key === 's') {
+    state.marketPos.y = Math.min(marketCanvas.height - 26, state.marketPos.y + step);
+    moved = true;
+  } else if (key === 'arrowleft' || key === 'a') {
+    state.marketPos.x = Math.max(26, state.marketPos.x - step);
+    moved = true;
+  } else if (key === 'arrowright' || key === 'd') {
+    state.marketPos.x = Math.min(marketCanvas.width - 26, state.marketPos.x + step);
+    moved = true;
+  } else if (key === 'e') {
+    event.preventDefault();
+    const nearby = getNearbyMarketStall();
+    if (nearby) {
+      attemptMarketTrade(nearby);
+    } else {
+      state.marketMessage = 'No stall in range. Move closer before trading.';
+      syncMarketUi();
+    }
+    return;
+  }
+
+  if (moved) {
+    event.preventDefault();
+    syncMarketUi();
+  }
 }
 
 function syncTerritoryMap() {
