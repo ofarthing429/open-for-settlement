@@ -1372,6 +1372,12 @@ function getColonyDefense(colony = state.colony) {
   return (colony.buildings.barracks * 2 + colony.buildings.troops) * boost;
 }
 
+function getAttackRollCapDefense(colony = state.colony) {
+  const boost = getBuildingBoost(colony);
+  // Troops increase your blocking defense, but enemy roll caps track fixed fortifications.
+  return colony.buildings.barracks * 2 * boost;
+}
+
 function cloneColonyData(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -2134,10 +2140,11 @@ function advanceColonyCycle() {
 function resolveRegionCycleEvents(region, cycleIssues) {
   const colony = state.colony;
   const defense = getColonyDefense(colony);
+  const attackCapDefense = getAttackRollCapDefense(colony);
 
   const raidChance = region.id !== 'capital' ? (colony.frontierWar ? 0.56 : 0.28) : 0;
   if (region.id !== 'capital' && Math.random() < raidChance) {
-    const tribeTroops = randInt(0, Math.max(0, defense * 2));
+    const tribeTroops = randInt(0, Math.max(0, attackCapDefense * 2));
     if (tribeTroops > 0) {
       if (defense >= tribeTroops) {
         addColonyLog(`A roaming native tribe tested the perimeter with ${tribeTroops} troops. Barracks held them off.`, 'good');
@@ -2159,7 +2166,7 @@ function resolveRegionCycleEvents(region, cycleIssues) {
   }
 
   if ((region.id === 'forest' || region.id === 'capital') && Math.random() < 0.24) {
-    const coralAttack = randInt(0, Math.max(0, Math.floor(defense * 1.5)));
+    const coralAttack = randInt(0, Math.max(0, Math.floor(attackCapDefense * 1.5)));
     if (coralAttack > 0) {
       if (defense >= coralAttack) {
         addColonyLog(`A coral surge struck with ${coralAttack} force. Defensive walkers burned it back.`, 'good');
