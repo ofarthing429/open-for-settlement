@@ -1331,21 +1331,23 @@ function advanceExplorerProgress() {
 
   const targetRegion = explorer.targetRegion;
   const oldColony = state.colony;
-  const supportSnapshot = snapshotSupportColony(oldColony);
-  const mergedSupportColonies = [
-    ...(oldColony.supportColonies || []),
-    supportSnapshot,
-  ];
-  state.colony = createColonyState(targetRegion, {
-    supportColonies: dedupeSupportColonies(mergedSupportColonies, targetRegion),
+  const newRemoteColony = createColonyState(targetRegion, {
     techBoost: Boolean(oldColony.techBoost),
     log: [
-      { text: `The Explorer reached ${REGION_DATA[targetRegion].name} and founded a new colony from scratch.`, tone: 'good' },
-      { text: `Support convoys from ${REGION_DATA[supportSnapshot.region].name} are already on the way.`, tone: 'good' },
+      { text: `Explorer command established a new colony in ${REGION_DATA[targetRegion].name}.`, tone: 'good' },
       { text: REGION_DATA[targetRegion].summary, tone: '' },
     ],
   });
-  return true;
+  oldColony.supportColonies = dedupeSupportColonies(
+    [...(oldColony.supportColonies || []), newRemoteColony],
+    oldColony.region,
+  );
+  oldColony.explorer.traveling = false;
+  oldColony.explorer.targetRegion = '';
+  oldColony.explorer.totalTurns = 0;
+  oldColony.explorer.turnsLeft = 0;
+  addColonyLog(`The Explorer reached ${REGION_DATA[targetRegion].name} and founded a new remote colony.`, 'good');
+  return false;
 }
 
 function applySupportColonyEffects() {
