@@ -456,8 +456,8 @@ button:disabled {
 
 .mainlandMap {
   display: grid;
-  grid-template-columns: repeat(21, 14px);
-  gap: 2px;
+  grid-template-columns: repeat(21, 12px);
+  gap: 1px;
   justify-content: center;
   padding: 12px;
   margin: 0 0 8px;
@@ -466,10 +466,26 @@ button:disabled {
 }
 
 .mainlandCell {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border: 1px solid #2e3340;
   background: #15131a;
+}
+
+.mainlandCell.biome-forest {
+  background: linear-gradient(180deg, #1f2a1e 0%, #172017 100%);
+}
+
+.mainlandCell.biome-flats {
+  background: linear-gradient(180deg, #243226 0%, #1b261e 100%);
+}
+
+.mainlandCell.biome-mergi {
+  background: linear-gradient(180deg, #2b2320 0%, #221b19 100%);
+}
+
+.mainlandCell.biome-capital {
+  background: linear-gradient(180deg, #252033 0%, #1d1827 100%);
 }
 
 .mainlandCell.water {

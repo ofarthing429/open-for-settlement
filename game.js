@@ -2220,6 +2220,7 @@ function renderMainlandMap() {
         mainlandMap.appendChild(cell);
         continue;
       }
+      cell.classList.add(`biome-${getMainlandBiome(x, y)}`);
       const deltas = [
         [1, 0],
         [-1, 0],
@@ -2246,6 +2247,20 @@ function renderMainlandMap() {
       mainlandMap.appendChild(cell);
     }
   }
+}
+
+function getMainlandBiome(x, y) {
+  // Simple island biome layout for readability on the takeover grid.
+  if (y <= 7 && x <= 11) {
+    return 'forest';
+  }
+  if (x >= 13 && y <= 13) {
+    return 'flats';
+  }
+  if (x <= 9 && y >= 11) {
+    return 'mergi';
+  }
+  return 'capital';
 }
 
 function expandMainlandTerritory(steps = 1) {
