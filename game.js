@@ -1354,6 +1354,7 @@ function applySupportColonyEffects() {
   if (!state.colony || !state.colony.active || !Array.isArray(state.colony.supportColonies) || state.colony.supportColonies.length === 0) {
     return;
   }
+  const activeIsMergi = state.colony.region === 'mergi';
 
   for (const support of state.colony.supportColonies) {
     support.cycle = (support.cycle || 0) + 1;
@@ -1362,7 +1363,15 @@ function applySupportColonyEffects() {
     const region = REGION_DATA[support.region];
     const boost = support.techBoost ? 2 : 1;
     const food = Math.max(0, Math.round(buildings.farms * 4 * region.foodMult * boost + territoryCount * 0.5));
-    const supplies = Math.max(0, Math.round((buildings.factories * 4 * region.factoryMult + buildings.mines * 2 * region.mineMult) * boost));
+    let supplies = Math.max(0, Math.round((buildings.factories * 4 * region.factoryMult + buildings.mines * 2 * region.mineMult) * boost));
+    if (support.region === 'mergi') {
+      // Sink fields in Mergi swallow heavy freight routes.
+      supplies = 0;
+    }
+    if (activeIsMergi) {
+      // Mergi also cannot safely receive external supply freight.
+      supplies = 0;
+    }
     const plutonium = Math.max(0, Math.round(buildings.mines * 3 * region.mineMult * boost));
     const points = support.region === 'capital' ? 4 : support.region === 'mergi' ? 2 : 1;
     state.colony.food += food;
@@ -2261,6 +2270,12 @@ function resolveRegionCycleEvents(region, cycleIssues) {
       cycleIssues.push('worm attack');
     }
   }
+  if (region.id === 'flats' && Math.random() < 0.32) {
+    const eaten = randInt(12, 36);
+    colony.supplies = Math.max(0, colony.supplies - eaten);
+    addColonyLog(`A worm tunnel opened under storage in the flats. Supplies -${eaten}.`, 'bad');
+    cycleIssues.push('worm scavenging');
+  }
 
   if (region.id === 'mergi') {
     const anchorShield = colony.buildings.groundAnchors * 3 * getBuildingBoost(colony);
@@ -2279,6 +2294,12 @@ function resolveRegionCycleEvents(region, cycleIssues) {
       colony.food = Math.max(0, colony.food - foodLoss);
       addColonyLog(`Nibbloraxes stripped ${foodLoss} food from the depots.`, 'bad');
       cycleIssues.push('Nibblorax infestation');
+    }
+    if (Math.random() < 0.35) {
+      const eaten = randInt(16, 44);
+      colony.supplies = Math.max(0, colony.supplies - eaten);
+      addColonyLog(`A worm burrow devoured ${eaten} supplies in the Mergi sink fields.`, 'bad');
+      cycleIssues.push('worm scavenging');
     }
     const supplyLoss = Math.max(0, randInt(8, 14) - Math.floor(anchorShield / 2));
     colony.supplies = Math.max(0, colony.supplies - supplyLoss);
