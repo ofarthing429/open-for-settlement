@@ -1106,6 +1106,22 @@ function normalizeBuildings(buildings = {}) {
   };
 }
 
+function dedupeSupportColonies(supportColonies = [], activeRegion = '') {
+  const byRegion = new Map();
+  for (const colony of supportColonies) {
+    if (!colony || !REGION_DATA[colony.region] || colony.region === activeRegion) {
+      continue;
+    }
+    const existing = byRegion.get(colony.region);
+    const colonyCycle = Number.isFinite(colony.cycle) ? colony.cycle : 0;
+    const existingCycle = existing && Number.isFinite(existing.cycle) ? existing.cycle : -1;
+    if (!existing || colonyCycle >= existingCycle) {
+      byRegion.set(colony.region, colony);
+    }
+  }
+  return [...byRegion.values()];
+}
+
 function showColonyPanel() {
   state.colony = loadStoredColony();
   if (!state.colony || !state.colony.active) {
@@ -1185,6 +1201,7 @@ function loadStoredColony() {
           log: [{ text: `${REGION_DATA[regionId].name} support colony preserved from legacy outpost data.`, tone: '' }],
         }));
     }
+    parsed.supportColonies = dedupeSupportColonies(parsed.supportColonies, parsed.region);
     parsed.explorer = parsed.explorer && typeof parsed.explorer === 'object' ? parsed.explorer : {};
     parsed.explorer.unlocked = Boolean(parsed.explorer.unlocked);
     parsed.explorer.traveling = Boolean(parsed.explorer.traveling);
@@ -1320,7 +1337,7 @@ function advanceExplorerProgress() {
     supportSnapshot,
   ];
   state.colony = createColonyState(targetRegion, {
-    supportColonies: mergedSupportColonies,
+    supportColonies: dedupeSupportColonies(mergedSupportColonies, targetRegion),
     techBoost: Boolean(oldColony.techBoost),
     log: [
       { text: `The Explorer reached ${REGION_DATA[targetRegion].name} and founded a new colony from scratch.`, tone: 'good' },
@@ -1418,7 +1435,7 @@ function switchToSupportColony(index) {
     .filter((_, itemIndex) => itemIndex !== index)
     .map((colony) => cloneColonyData(colony));
 
-  nextActive.supportColonies = [...remaining, currentSnapshot];
+  nextActive.supportColonies = dedupeSupportColonies([...remaining, currentSnapshot], nextActive.region);
   nextActive.active = true;
   if (!nextActive.log) {
     nextActive.log = [];
