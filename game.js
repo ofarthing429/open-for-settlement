@@ -1228,11 +1228,14 @@ function buildMainlandSpecialTiles(core) {
       }
     }
   };
-  pushRandom('copper', 20);
-  pushRandom('hive', 24);
-  pushRandom('camp', 16);
-  pushRandom('river', 24);
-  pushRandom('burrow', 12);
+  const total = mainlandTiles.length;
+  // Dense mainland specials so the island feels busy and dangerous.
+  pushRandom('copper', Math.max(24, Math.round(total * 0.1)));
+  pushRandom('hive', Math.max(28, Math.round(total * 0.12)));
+  pushRandom('camp', Math.max(20, Math.round(total * 0.08)));
+  pushRandom('river', Math.max(26, Math.round(total * 0.11)));
+  pushRandom('burrow', Math.max(18, Math.round(total * 0.07)));
+  pushRandom('corruptor', Math.max(18, Math.round(total * 0.07)));
   return tiles;
 }
 
@@ -2327,7 +2330,81 @@ function resolveMainlandClaim(tile) {
     } else if (special.type === 'burrow') {
       triggerMainlandBurrowCollapse(tile);
       addMainlandLog(`Worm burrow struck at ${tile.x},${tile.y}. Nearby sectors are unstable.`, 'bad');
+    } else if (special.type === 'corruptor') {
+      addMainlandLog(`Coral Corruptor found at ${tile.x},${tile.y}. It will spread each cycle.`, 'bad');
     }
+  }
+}
+
+function getLandNeighbors(x, y) {
+  const candidates = [
+    { x: x + 1, y },
+    { x: x - 1, y },
+    { x, y: y + 1 },
+    { x, y: y - 1 },
+  ];
+  return candidates.filter((tile) => (
+    tile.x >= 0
+    && tile.x < MAINLAND_SIZE
+    && tile.y >= 0
+    && tile.y < MAINLAND_SIZE
+    && MAINLAND_MASK.has(`${tile.x},${tile.y}`)
+  ));
+}
+
+function advanceCoralCorruptors() {
+  if (!state.colony || !state.colony.mainland) {
+    return;
+  }
+  const mainland = state.colony.mainland;
+  const specials = mainland.specialTiles || [];
+  const corruptors = specials.filter((tile) => tile.type === 'corruptor');
+  if (corruptors.length === 0) {
+    return;
+  }
+
+  let spreadCount = 0;
+  let destroyedCount = 0;
+  const occupiedSpecials = new Set(specials.map((tile) => `${tile.x},${tile.y}`));
+
+  for (const node of corruptors) {
+    // Corruptor directly destroys any building on its tile.
+    const localBuilding = (mainland.buildingTiles || []).find((tile) => tile.x === node.x && tile.y === node.y);
+    if (localBuilding) {
+      removeMainlandBuildingTile(localBuilding, 'coral corruptor');
+      destroyedCount += 1;
+    }
+
+    if (Math.random() < 0.48) {
+      const neighbors = getLandNeighbors(node.x, node.y)
+        .filter((tile) => !occupiedSpecials.has(`${tile.x},${tile.y}`));
+      if (neighbors.length > 0) {
+        const chosen = neighbors[randInt(0, neighbors.length - 1)];
+        mainland.specialTiles.push({
+          x: chosen.x,
+          y: chosen.y,
+          type: 'corruptor',
+          discovered: false,
+          cleared: false,
+          bugsRemaining: 0,
+        });
+        occupiedSpecials.add(`${chosen.x},${chosen.y}`);
+        spreadCount += 1;
+
+        const hitBuilding = (mainland.buildingTiles || []).find((tile) => tile.x === chosen.x && tile.y === chosen.y);
+        if (hitBuilding) {
+          removeMainlandBuildingTile(hitBuilding, 'coral corruptor spread');
+          destroyedCount += 1;
+        }
+      }
+    }
+  }
+
+  if (spreadCount > 0) {
+    addMainlandLog(`Coral Corruptors spread to ${spreadCount} new square${spreadCount === 1 ? '' : 's'}.`, 'bad');
+  }
+  if (destroyedCount > 0) {
+    addMainlandLog(`Corruptor growth destroyed ${destroyedCount} building square${destroyedCount === 1 ? '' : 's'}.`, 'bad');
   }
 }
 
@@ -2380,6 +2457,7 @@ function advanceMainlandCycle() {
   mainland.actionsLeft = getMainlandColonyCount() * 4;
 
   addMainlandLog('Mainland cycle advanced. Build to claim new squares.', '');
+  advanceCoralCorruptors();
 
   resolveMainlandHivePressure();
   if (Math.random() < 0.42) {
@@ -3208,6 +3286,24 @@ function resolveRegionCycleEvents(region, cycleIssues) {
       colony.supplies = Math.max(0, colony.supplies - eaten);
       addColonyLog(`A worm burrow devoured ${eaten} supplies in the Mergi sink fields.`, 'bad');
       cycleIssues.push('worm scavenging');
+    }
+    if (Math.random() < 0.33) {
+      const duneForce = randInt(12, 28);
+      const mitigated = Math.max(0, duneForce - Math.floor(anchorShield / 2));
+      if (mitigated > 0) {
+        const stabilityLoss = Math.max(5, Math.floor(mitigated / 2));
+        colony.stability = Math.max(0, colony.stability - stabilityLoss);
+        const supplyLoss = Math.max(6, mitigated);
+        colony.supplies = Math.max(0, colony.supplies - supplyLoss);
+        addColonyLog(`Sinking Dunes rolled through the Mergi lanes. Supplies -${supplyLoss}, stability -${stabilityLoss}.`, 'bad');
+        if (Math.random() < 0.4) {
+          destroyRandomColonyBuilding();
+          addColonyLog('A building was swallowed by the Sinking Dunes.', 'bad');
+        }
+        cycleIssues.push('sinking dunes');
+      } else {
+        addColonyLog('Sinking Dunes formed, but ground anchors held the line.', 'good');
+      }
     }
     const supplyLoss = Math.max(0, randInt(8, 14) - Math.floor(anchorShield / 2));
     colony.supplies = Math.max(0, colony.supplies - supplyLoss);
