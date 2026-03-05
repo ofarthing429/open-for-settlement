@@ -240,11 +240,11 @@ const TABLETS = {
 };
 
 const CAPITAL_MARKET_STALLS = [
-  { id: 'rations', name: 'Ration Stall', x: 170, y: 130, cost: 12, desc: '+60 Food' },
-  { id: 'supplies', name: 'Supply Yard', x: 450, y: 110, cost: 15, desc: '+50 Supplies' },
-  { id: 'fuel', name: 'Fuel Broker', x: 740, y: 130, cost: 14, desc: '+30 Plutonium' },
-  { id: 'troops', name: 'Contract Post', x: 300, y: 355, cost: 20, desc: '+5 Troops' },
-  { id: 'stability', name: 'Medic Guild', x: 650, y: 355, cost: 18, desc: '+10 Stability' },
+  { id: 'rations', name: 'Ration Stall', x: 170, y: 245, cost: 12, desc: '+60 Food' },
+  { id: 'supplies', name: 'Supply Yard', x: 450, y: 235, cost: 15, desc: '+50 Supplies' },
+  { id: 'fuel', name: 'Fuel Broker', x: 740, y: 245, cost: 14, desc: '+30 Plutonium' },
+  { id: 'troops', name: 'Contract Post', x: 300, y: 365, cost: 20, desc: '+5 Troops' },
+  { id: 'stability', name: 'Medic Guild', x: 650, y: 365, cost: 18, desc: '+10 Stability' },
 ];
 
 const state = {
@@ -1944,6 +1944,13 @@ function drawCapitalMarket() {
   marketCtx.fillRect(118, 242, 6, 8);
 
   for (const stall of CAPITAL_MARKET_STALLS) {
+    // Shadow + support poles so stalls feel planted to ground
+    marketCtx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    marketCtx.fillRect(stall.x - 30, stall.y + 30, 60, 8);
+    marketCtx.fillStyle = '#2b2330';
+    marketCtx.fillRect(stall.x - 30, stall.y + 28, 5, 34);
+    marketCtx.fillRect(stall.x + 25, stall.y + 28, 5, 34);
+
     // Stall body and canopy
     marketCtx.fillStyle = '#4e2c63';
     marketCtx.fillRect(stall.x - 44, stall.y - 26, 88, 54);
