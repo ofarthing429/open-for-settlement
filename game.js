@@ -2705,12 +2705,14 @@ function advanceCoralCorruptors() {
 
   let spreadCount = 0;
   let destroyedCount = 0;
+  let blockedCount = 0;
   const occupiedSpecials = new Set(specials.map((tile) => `${tile.x},${tile.y}`));
   const spreadChance = Math.min(0.82, 0.48 + (getMineThreatBonusChance(state.colony) * 1.1));
 
   for (const node of corruptors) {
     // Corruptors inside stabilized anchor zones go dormant.
     if (isTileProtectedByGroundAnchor(node)) {
+      blockedCount += 1;
       continue;
     }
 
@@ -2718,7 +2720,7 @@ function advanceCoralCorruptors() {
     const localBuilding = (mainland.buildingTiles || []).find((tile) => tile.x === node.x && tile.y === node.y);
     if (localBuilding) {
       if (isTileProtectedByGroundAnchor(localBuilding)) {
-        // Protected squares ignore corruptor damage.
+        blockedCount += 1;
       } else {
         removeMainlandBuildingTile(localBuilding, 'coral corruptor');
         destroyedCount += 1;
@@ -2744,7 +2746,7 @@ function advanceCoralCorruptors() {
         const hitBuilding = (mainland.buildingTiles || []).find((tile) => tile.x === chosen.x && tile.y === chosen.y);
         if (hitBuilding) {
           if (isTileProtectedByGroundAnchor(hitBuilding)) {
-            // Protected squares ignore corruptor spread damage.
+            blockedCount += 1;
           } else {
             removeMainlandBuildingTile(hitBuilding, 'coral corruptor spread');
             destroyedCount += 1;
@@ -2759,6 +2761,9 @@ function advanceCoralCorruptors() {
   }
   if (destroyedCount > 0) {
     addMainlandLog(`Corruptor growth destroyed ${destroyedCount} building square${destroyedCount === 1 ? '' : 's'}.`, 'bad');
+  }
+  if (blockedCount > 0) {
+    addColonyLog(`Ground Anchors stopped coral corruption ${blockedCount} time${blockedCount === 1 ? '' : 's'} this cycle.`, 'good');
   }
 }
 
