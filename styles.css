@@ -601,6 +601,67 @@ button:disabled {
   border-color: #c8d5e7;
 }
 
+.mainlandCell.building-farms {
+  background:
+    linear-gradient(180deg, rgba(160, 255, 150, 0.55) 0 30%, transparent 30% 100%),
+    linear-gradient(180deg, #4d6d42 0%, #32492e 100%);
+}
+
+.mainlandCell.building-powerPlants {
+  background:
+    linear-gradient(180deg, rgba(152, 226, 255, 0.55) 0 28%, transparent 28% 100%),
+    linear-gradient(180deg, #4b5b78 0%, #313d54 100%);
+}
+
+.mainlandCell.building-mines {
+  background:
+    linear-gradient(180deg, rgba(244, 211, 142, 0.55) 0 26%, transparent 26% 100%),
+    linear-gradient(180deg, #6a5738 0%, #463a26 100%);
+}
+
+.mainlandCell.building-factories {
+  background:
+    linear-gradient(180deg, rgba(186, 205, 236, 0.55) 0 26%, transparent 26% 100%),
+    linear-gradient(180deg, #5a6273 0%, #3a4150 100%);
+}
+
+.mainlandCell.building-businessHouses {
+  background:
+    linear-gradient(180deg, rgba(180, 245, 255, 0.55) 0 26%, transparent 26% 100%),
+    linear-gradient(180deg, #4c7380 0%, #34525c 100%);
+}
+
+.mainlandCell.building-storageHouses {
+  background:
+    linear-gradient(180deg, rgba(250, 224, 162, 0.55) 0 26%, transparent 26% 100%),
+    linear-gradient(180deg, #75633f 0%, #52442c 100%);
+}
+
+.mainlandCell.building-barracks {
+  background:
+    linear-gradient(180deg, rgba(255, 164, 164, 0.6) 0 24%, transparent 24% 100%),
+    linear-gradient(180deg, #68505f 0%, #45343f 100%);
+}
+
+.mainlandCell.building-troops {
+  background:
+    linear-gradient(180deg, rgba(255, 224, 172, 0.6) 0 24%, transparent 24% 100%),
+    linear-gradient(180deg, #60788e 0%, #3f4f5f 100%);
+}
+
+.mainlandCell.building-groundAnchors {
+  background:
+    linear-gradient(90deg,
+      transparent 0 18%,
+      rgba(184, 214, 235, 0.85) 18% 30%,
+      transparent 30% 42%,
+      rgba(184, 214, 235, 0.85) 42% 54%,
+      transparent 54% 66%,
+      rgba(184, 214, 235, 0.85) 66% 78%,
+      transparent 78% 100%),
+    linear-gradient(180deg, #5c6d80 0%, #34404d 100%);
+}
+
 .territoryCell {
   width: 22px;
   height: 22px;

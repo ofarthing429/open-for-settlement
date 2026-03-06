@@ -2333,8 +2333,10 @@ function renderMainlandMap() {
       if (special) {
         cell.classList.add(special.type);
       }
-      if (buildingTiles.has(key)) {
+      const building = buildingTiles.get(key);
+      if (building) {
         cell.classList.add('built');
+        cell.classList.add(`building-${building.kind}`);
       }
       if (x === mainland.core.x && y === mainland.core.y) {
         cell.classList.add('core');
