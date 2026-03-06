@@ -203,13 +203,14 @@ const BUILDING_DATA = {
 
 const MAP_SIZE = 13;
 const MAINLAND_SIZE = 30;
+const MINE_CAP = 500;
 const MAINLAND_MASK = buildMainlandMask();
 
 function buildMainlandMask() {
   const land = new Set();
   const center = (MAINLAND_SIZE - 1) / 2;
-  const rx = MAINLAND_SIZE * 0.42;
-  const ry = MAINLAND_SIZE * 0.36;
+  const rx = MAINLAND_SIZE * 0.46;
+  const ry = MAINLAND_SIZE * 0.41;
 
   for (let y = 0; y < MAINLAND_SIZE; y += 1) {
     for (let x = 0; x < MAINLAND_SIZE; x += 1) {
@@ -221,9 +222,9 @@ function buildMainlandMask() {
       }
 
       // Carve bays/notches so the island has a clear unique silhouette.
-      const northBay = x >= Math.floor(MAINLAND_SIZE * 0.38) && x <= Math.floor(MAINLAND_SIZE * 0.56) && y <= Math.floor(MAINLAND_SIZE * 0.2);
-      const westNotch = x <= Math.floor(MAINLAND_SIZE * 0.16) && y >= Math.floor(MAINLAND_SIZE * 0.32) && y <= Math.floor(MAINLAND_SIZE * 0.56);
-      const southBite = x >= Math.floor(MAINLAND_SIZE * 0.52) && x <= Math.floor(MAINLAND_SIZE * 0.74) && y >= Math.floor(MAINLAND_SIZE * 0.76);
+      const northBay = x >= Math.floor(MAINLAND_SIZE * 0.4) && x <= Math.floor(MAINLAND_SIZE * 0.54) && y <= Math.floor(MAINLAND_SIZE * 0.16);
+      const westNotch = x <= Math.floor(MAINLAND_SIZE * 0.12) && y >= Math.floor(MAINLAND_SIZE * 0.34) && y <= Math.floor(MAINLAND_SIZE * 0.54);
+      const southBite = x >= Math.floor(MAINLAND_SIZE * 0.56) && x <= Math.floor(MAINLAND_SIZE * 0.72) && y >= Math.floor(MAINLAND_SIZE * 0.82);
       if (northBay || westNotch || southBite) {
         continue;
       }
@@ -233,12 +234,12 @@ function buildMainlandMask() {
   }
 
   // Add two peninsulas.
-  for (let y = Math.floor(MAINLAND_SIZE * 0.38); y <= Math.floor(MAINLAND_SIZE * 0.52); y += 1) {
+  for (let y = Math.floor(MAINLAND_SIZE * 0.36); y <= Math.floor(MAINLAND_SIZE * 0.56); y += 1) {
     for (let x = Math.floor(MAINLAND_SIZE * 0.8); x <= MAINLAND_SIZE - 2; x += 1) {
       land.add(`${x},${y}`);
     }
   }
-  for (let y = Math.floor(MAINLAND_SIZE * 0.62); y <= Math.floor(MAINLAND_SIZE * 0.74); y += 1) {
+  for (let y = Math.floor(MAINLAND_SIZE * 0.6); y <= Math.floor(MAINLAND_SIZE * 0.76); y += 1) {
     for (let x = Math.floor(MAINLAND_SIZE * 0.18); x <= Math.floor(MAINLAND_SIZE * 0.26); x += 1) {
       land.add(`${x},${y}`);
     }
@@ -343,6 +344,10 @@ const state = {
   marketOpen: false,
   islandOpen: false,
   pendingPlacement: null,
+  cooldowns: {
+    bouncer: 0,
+    sonar: 0,
+  },
   marketMessage: 'Walk up to a stall and press E to trade points.',
   marketPos: { x: 480, y: 460 },
   colonyMapOpen: false,
@@ -474,6 +479,8 @@ function startGame() {
   state.sonarArmed = false;
   state.pickaxeArmed = false;
   state.windmillArmed = false;
+  state.cooldowns.bouncer = 0;
+  state.cooldowns.sonar = 0;
   state.traderOffers = [];
   state.traderSellOffers = [];
   state.traderOpen = false;
@@ -542,6 +549,12 @@ function processTurn({ skipHazards, skipLabel = '' }) {
 
   state.turn += 1;
   state.position = Math.min(state.position + 1, state.trackLength - 1);
+  if (state.cooldowns.bouncer > 0) {
+    state.cooldowns.bouncer -= 1;
+  }
+  if (state.cooldowns.sonar > 0) {
+    state.cooldowns.sonar -= 1;
+  }
   if (skipHazards) {
     addLog(`Turn ${state.turn}: jump turn, no food consumed.`, 'good');
   } else {
@@ -773,6 +786,10 @@ function useSonar() {
     addLog('Sonar disrupter is already armed.', 'bad');
     return;
   }
+  if (state.cooldowns.sonar > 0) {
+    addLog(`Sonar disrupter cooldown: ${state.cooldowns.sonar} turn(s) remaining.`, 'bad');
+    return;
+  }
 
   if (consumePossiblyFakeItem('sonarDisrupter', 'The sonar disrupter is hollow. Scam device.')) {
     syncInventoryUi();
@@ -781,6 +798,7 @@ function useSonar() {
   }
 
   state.sonarArmed = true;
+  state.cooldowns.sonar = 8;
   addLog('Sonar disrupter armed until a worm appears.', 'good');
   triggerEventAnimation('sonar', 52);
   syncInventoryUi();
@@ -796,12 +814,17 @@ function useBouncer() {
     addLog('No bouncer charges left.', 'bad');
     return;
   }
+  if (state.cooldowns.bouncer > 0) {
+    addLog(`Bouncer cooldown: ${state.cooldowns.bouncer} turn(s) remaining.`, 'bad');
+    return;
+  }
 
   if (consumePossiblyFakeItem('bouncer', 'The bouncer charge fizzles out. Scam field.')) {
     syncInventoryUi();
     draw();
     return;
   }
+  state.cooldowns.bouncer = 6;
   addLog('Bouncer engaged: jumping 5 turns with hazard immunity.', 'good');
 
   for (let i = 0; i < 5; i += 1) {
@@ -1245,7 +1268,7 @@ function normalizeBuildings(buildings = {}) {
   return {
     farms: Number.isFinite(buildings.farms) ? buildings.farms : 1,
     powerPlants: Number.isFinite(buildings.powerPlants) ? buildings.powerPlants : 1,
-    mines: Number.isFinite(buildings.mines) ? buildings.mines : 1,
+    mines: Math.min(MINE_CAP, Number.isFinite(buildings.mines) ? buildings.mines : 1),
     factories: Number.isFinite(buildings.factories) ? buildings.factories : 0,
     businessHouses: Number.isFinite(buildings.businessHouses) ? buildings.businessHouses : 0,
     storageHouses: Number.isFinite(buildings.storageHouses) ? buildings.storageHouses : 1,
@@ -1253,6 +1276,90 @@ function normalizeBuildings(buildings = {}) {
     troops: Number.isFinite(buildings.troops) ? buildings.troops : 0,
     groundAnchors: Number.isFinite(buildings.groundAnchors) ? buildings.groundAnchors : 0,
   };
+}
+
+function getMineThreatBonusChance(colony = state.colony) {
+  if (!colony) {
+    return 0;
+  }
+  return Math.min(0.24, colony.buildings.mines / 2200);
+}
+
+function getBuildingCost(kind, colony = state.colony) {
+  const base = BUILDING_DATA[kind] ? BUILDING_DATA[kind].suppliesCost : 0;
+  const owned = colony && colony.buildings ? (colony.buildings[kind] || 0) : 0;
+  const territory = colony && Array.isArray(colony.territory) ? colony.territory.length : 1;
+  const expansionStrain = Math.floor(territory / 25);
+  const scalingByKind = {
+    farms: 2,
+    powerPlants: 3,
+    mines: 1,
+    factories: 3,
+    businessHouses: 2,
+    storageHouses: 2,
+    barracks: 3,
+    troops: 1,
+    groundAnchors: 2,
+  };
+  const plutoniumByKind = {
+    farms: 0,
+    powerPlants: 2,
+    mines: 0,
+    factories: 1,
+    businessHouses: 1,
+    storageHouses: 1,
+    barracks: 1,
+    troops: 1,
+    groundAnchors: 2,
+  };
+  const scale = scalingByKind[kind] || 1;
+  const plutoniumScale = plutoniumByKind[kind] || 0;
+  const supplies = Math.max(0, base + (owned * scale) + expansionStrain);
+  const plutonium = Math.max(0, plutoniumScale > 0 ? Math.floor((owned / 8)) + plutoniumScale : Math.floor(owned / 30));
+  return { supplies, plutonium };
+}
+
+function getColonyThreatLevel(colony = state.colony) {
+  if (!colony) {
+    return 0;
+  }
+  let threat = 0;
+  if (colony.frontierWar) {
+    threat += 1;
+  }
+  if (colony.region === 'mergi' || colony.region === 'flats') {
+    threat += 1;
+  }
+  const activeHives = Array.isArray(colony.specialTiles)
+    ? colony.specialTiles.filter((tile) => tile.type === 'hive' && tile.discovered && !tile.cleared && tile.bugsRemaining > 0).length
+    : 0;
+  if (activeHives > 0) {
+    threat += 1;
+  }
+  const corruptors = colony.mainland && Array.isArray(colony.mainland.specialTiles)
+    ? colony.mainland.specialTiles.filter((tile) => tile.type === 'corruptor').length
+    : 0;
+  if (corruptors > 0) {
+    threat += 1;
+  }
+  if (colony.mainland && colony.mainland.active) {
+    threat += 1;
+  }
+  return Math.min(4, threat);
+}
+
+function getStorePrice(kind) {
+  const base = {
+    repair: 15,
+    spray: 5,
+    bouncer: 30,
+    maxHp: 50,
+    sonar: 100,
+    investor: 75,
+  };
+  const threatLevel = getColonyThreatLevel(state.colony);
+  const multiplier = 1 + (threatLevel * 0.2);
+  return Math.max(1, Math.round(base[kind] * multiplier));
 }
 
 function normalizeMainlandState(mainland) {
@@ -1905,15 +2012,25 @@ function syncColonyUi() {
     colonyLog.appendChild(p);
   }
 
-  buildFarmBtn.disabled = state.colony.supplies < BUILDING_DATA.farms.suppliesCost;
-  buildPowerPlantBtn.disabled = state.colony.supplies < BUILDING_DATA.powerPlants.suppliesCost;
-  buildMineBtn.disabled = false;
-  buildFactoryBtn.disabled = state.colony.supplies < BUILDING_DATA.factories.suppliesCost;
-  buildBusinessHouseBtn.disabled = state.colony.supplies < BUILDING_DATA.businessHouses.suppliesCost;
-  buildStorageBtn.disabled = state.colony.supplies < BUILDING_DATA.storageHouses.suppliesCost;
-  buildBarracksBtn.disabled = state.colony.supplies < BUILDING_DATA.barracks.suppliesCost;
-  buildTroopBtn.disabled = state.colony.supplies < BUILDING_DATA.troops.suppliesCost;
-  buildGroundAnchorBtn.disabled = state.colony.supplies < BUILDING_DATA.groundAnchors.suppliesCost;
+  const farmCost = getBuildingCost('farms', state.colony);
+  const powerPlantCost = getBuildingCost('powerPlants', state.colony);
+  const mineCost = getBuildingCost('mines', state.colony);
+  const factoryCost = getBuildingCost('factories', state.colony);
+  const businessCost = getBuildingCost('businessHouses', state.colony);
+  const storageCost = getBuildingCost('storageHouses', state.colony);
+  const barracksCost = getBuildingCost('barracks', state.colony);
+  const troopCost = getBuildingCost('troops', state.colony);
+  const anchorCost = getBuildingCost('groundAnchors', state.colony);
+
+  buildFarmBtn.disabled = state.colony.supplies < farmCost.supplies || state.colony.plutonium < farmCost.plutonium;
+  buildPowerPlantBtn.disabled = state.colony.supplies < powerPlantCost.supplies || state.colony.plutonium < powerPlantCost.plutonium;
+  buildMineBtn.disabled = state.colony.buildings.mines >= MINE_CAP || state.colony.supplies < mineCost.supplies || state.colony.plutonium < mineCost.plutonium;
+  buildFactoryBtn.disabled = state.colony.supplies < factoryCost.supplies || state.colony.plutonium < factoryCost.plutonium;
+  buildBusinessHouseBtn.disabled = state.colony.supplies < businessCost.supplies || state.colony.plutonium < businessCost.plutonium;
+  buildStorageBtn.disabled = state.colony.supplies < storageCost.supplies || state.colony.plutonium < storageCost.plutonium;
+  buildBarracksBtn.disabled = state.colony.supplies < barracksCost.supplies || state.colony.plutonium < barracksCost.plutonium;
+  buildTroopBtn.disabled = state.colony.supplies < troopCost.supplies || state.colony.plutonium < troopCost.plutonium;
+  buildGroundAnchorBtn.disabled = state.colony.supplies < anchorCost.supplies || state.colony.plutonium < anchorCost.plutonium;
   openCapitalMarketBtn.disabled = state.colony.region !== 'capital';
   openIslandTakeoverBtn.disabled = !state.colony.mainland || !state.colony.mainland.unlocked;
 }
@@ -1980,8 +2097,15 @@ function buildColonyBuilding(kind) {
     return;
   }
 
-  if (state.colony.supplies < rules.suppliesCost) {
-    addColonyLog(`Not enough supplies to build ${rules.label}.`, 'bad');
+  if (kind === 'mines' && state.colony.buildings.mines >= MINE_CAP) {
+    addColonyLog(`Mine cap reached (${MINE_CAP}). No more mines can be built.`, 'bad');
+    syncColonyUi();
+    return;
+  }
+
+  const cost = getBuildingCost(kind, state.colony);
+  if (state.colony.supplies < cost.supplies || state.colony.plutonium < cost.plutonium) {
+    addColonyLog(`Not enough resources for ${rules.label}. Need ${cost.supplies} supplies and ${cost.plutonium} plutonium.`, 'bad');
     syncColonyUi();
     return;
   }
@@ -1998,7 +2122,7 @@ function buildColonyBuilding(kind) {
       syncColonyUi();
       return;
     }
-    state.pendingPlacement = { kind, suppliesCost: rules.suppliesCost };
+    state.pendingPlacement = { kind, suppliesCost: cost.supplies, plutoniumCost: cost.plutonium };
     addColonyLog('Ground Anchor placement armed. Open Island Takeover and click a valid expansion square.', 'good');
     addMainlandLog('Placement mode: click an adjacent empty land square to place Ground Anchor.', 'good');
     if (state.islandOpen) {
@@ -2019,12 +2143,13 @@ function buildColonyBuilding(kind) {
     }
   }
 
-  state.colony.supplies -= rules.suppliesCost;
+  state.colony.supplies -= cost.supplies;
+  state.colony.plutonium = Math.max(0, state.colony.plutonium - cost.plutonium);
   state.colony.buildings[kind] += 1;
   if (state.colony.mainland && state.colony.mainland.active) {
     state.colony.mainland.actionsLeft = Math.max(0, state.colony.mainland.actionsLeft - 1);
   }
-  addColonyLog(`${rules.label} completed.`, 'good');
+  addColonyLog(`${rules.label} completed. Cost: ${cost.supplies} supplies, ${cost.plutonium} plutonium.`, 'good');
   storeColony();
   syncColonyUi();
   if (state.islandOpen) {
@@ -2144,6 +2269,13 @@ function handleMainlandCellClick(x, y) {
     syncIslandTakeoverUi();
     return;
   }
+  if (state.colony.plutonium < (pending.plutoniumCost || 0)) {
+    addMainlandLog('Placement canceled: not enough plutonium anymore.', 'bad');
+    state.pendingPlacement = null;
+    syncColonyUi();
+    syncIslandTakeoverUi();
+    return;
+  }
   if (state.colony.mainland.actionsLeft <= 0) {
     addMainlandLog('Placement canceled: no build actions left this cycle.', 'bad');
     state.pendingPlacement = null;
@@ -2153,12 +2285,13 @@ function handleMainlandCellClick(x, y) {
   }
 
   state.colony.supplies -= pending.suppliesCost;
+  state.colony.plutonium = Math.max(0, state.colony.plutonium - (pending.plutoniumCost || 0));
   state.colony.buildings[pending.kind] += 1;
   state.colony.mainland.actionsLeft = Math.max(0, state.colony.mainland.actionsLeft - 1);
   state.colony.mainland.territory.push({ x, y });
   state.colony.mainland.buildingTiles.push({ x, y, kind: pending.kind });
   resolveMainlandClaim({ x, y });
-  addColonyLog(`${BUILDING_DATA[pending.kind].label} completed at ${x},${y}.`, 'good');
+  addColonyLog(`${BUILDING_DATA[pending.kind].label} completed at ${x},${y}. Cost: ${pending.suppliesCost} supplies, ${pending.plutoniumCost || 0} plutonium.`, 'good');
   addMainlandLog(`Ground Anchor placed at ${x},${y}. Buildings within 2 squares are protected.`, 'good');
   state.pendingPlacement = null;
   storeColony();
@@ -2315,7 +2448,12 @@ function renderMainlandMap() {
       if (state.pendingPlacement && canPlaceMainlandExpansionAt(x, y)) {
         cell.classList.add('placeable');
       }
-      cell.classList.add(`biome-${getMainlandBiome(x, y)}`);
+      const biome = getMainlandBiome(x, y);
+      cell.classList.add(`biome-${biome}`);
+      const detailClass = getMainlandDetailClass(x, y);
+      if (detailClass) {
+        cell.classList.add(detailClass);
+      }
       const deltas = [
         [1, 0],
         [-1, 0],
@@ -2359,6 +2497,21 @@ function getMainlandBiome(x, y) {
     return 'mergi';
   }
   return 'capital';
+}
+
+function getMainlandDetailClass(x, y) {
+  // Deterministic tile clutter so the island feels less empty.
+  const hash = ((x * 37) + (y * 53) + (x * y * 7)) % 11;
+  if (hash <= 2) {
+    return 'detail-crack';
+  }
+  if (hash <= 5) {
+    return 'detail-rock';
+  }
+  if (hash <= 8) {
+    return 'detail-speck';
+  }
+  return '';
 }
 
 function expandMainlandTerritory(steps = 1) {
@@ -2461,6 +2614,7 @@ function advanceCoralCorruptors() {
   let spreadCount = 0;
   let destroyedCount = 0;
   const occupiedSpecials = new Set(specials.map((tile) => `${tile.x},${tile.y}`));
+  const spreadChance = Math.min(0.82, 0.48 + (getMineThreatBonusChance(state.colony) * 1.1));
 
   for (const node of corruptors) {
     // Corruptor directly destroys any building on its tile.
@@ -2474,7 +2628,7 @@ function advanceCoralCorruptors() {
       }
     }
 
-    if (Math.random() < 0.48) {
+    if (Math.random() < spreadChance) {
       const neighbors = getLandNeighbors(node.x, node.y)
         .filter((tile) => !occupiedSpecials.has(`${tile.x},${tile.y}`));
       if (neighbors.length > 0) {
@@ -3201,6 +3355,18 @@ function advanceColonyCycle() {
   const powerProduced = plutoniumForPower * 10;
   colony.power = powerProduced;
 
+  let cropDecayPenalty = 0;
+  const decayChance = Math.min(0.42, 0.06 + (colony.plutonium / 850) + (colony.buildings.mines / 1800));
+  if (Math.random() < decayChance) {
+    const plutoniumLoss = Math.max(8, Math.round(colony.plutonium * randFloat(0.08, 0.22)));
+    colony.plutonium = Math.max(0, colony.plutonium - plutoniumLoss);
+    cropDecayPenalty = randFloat(0.25, 0.6);
+    const cropLoss = Math.max(5, Math.round(colony.buildings.farms * randInt(3, 9)));
+    colony.food = Math.max(0, colony.food - cropLoss);
+    addColonyLog(`Plutonium Decay event: reactor rot burned ${plutoniumLoss} plutonium and ruined ${cropLoss} crop reserves.`, 'bad');
+    cycleIssues.push('plutonium decay');
+  }
+
   const passiveDemand = 2 + colony.buildings.storageHouses * 2;
   const farmDemand = colony.buildings.farms * 4;
   const factoryDemand = colony.buildings.factories * 6;
@@ -3219,7 +3385,9 @@ function advanceColonyCycle() {
   const foodProduced = Math.round(colony.buildings.farms * 18 * region.foodMult * powerRatio * buildingBoost);
   const hasRiverAccess = Array.isArray(colony.specialTiles)
     && colony.specialTiles.some((tile) => tile.type === 'river' && colony.territory.some((t) => t.x === tile.x && t.y === tile.y));
-  const finalFoodProduced = hasRiverAccess ? foodProduced * 2 : foodProduced;
+  const riverFoodProduced = hasRiverAccess ? foodProduced * 2 : foodProduced;
+  const powerPlantPenalty = Math.min(0.45, colony.buildings.powerPlants * 0.004);
+  const finalFoodProduced = Math.max(0, Math.round(riverFoodProduced * (1 - powerPlantPenalty) * (1 - cropDecayPenalty)));
   const suppliesProduced = Math.round(colony.buildings.factories * 10 * region.factoryMult * powerRatio * buildingBoost);
   colony.food += finalFoodProduced;
   colony.supplies += suppliesProduced;
@@ -3228,6 +3396,12 @@ function advanceColonyCycle() {
       addColonyLog(`Farms and river fishing produced ${finalFoodProduced} food.`, 'good');
     } else {
       addColonyLog(`Farms produced ${finalFoodProduced} food.`, 'good');
+    }
+    if (powerPlantPenalty > 0) {
+      addColonyLog(`Power-plant heat haze reduced crop yield by ${Math.round(powerPlantPenalty * 100)}%.`, 'bad');
+    }
+    if (cropDecayPenalty > 0) {
+      addColonyLog(`Plutonium Decay reduced crop yield by ${Math.round(cropDecayPenalty * 100)}% this cycle.`, 'bad');
     }
   }
   if (suppliesProduced > 0) {
@@ -3244,14 +3418,41 @@ function advanceColonyCycle() {
   }
 
   const territoryUse = colony.territory.length;
-  const foodUse = 14 + colony.buildings.farms * 2 + colony.buildings.factories * 2 + colony.buildings.barracks * 3 + territoryUse;
-  const supplyUse = region.supplyUpkeep + territoryUse;
+  const foodUse = 14 + colony.buildings.farms * 2 + colony.buildings.factories * 2 + colony.buildings.barracks * 4 + territoryUse;
+  const supplyUse = region.supplyUpkeep + territoryUse + colony.buildings.barracks * 2;
   colony.food -= foodUse;
   colony.supplies -= supplyUse;
   addColonyLog(`Colony upkeep consumed ${foodUse} food and ${supplyUse} supplies. Territory: ${territoryUse} squares, +${territoryUse} food, +${territoryUse} supplies.`);
 
   resolveHiveInfestations(cycleIssues);
   resolveRegionCycleEvents(region, cycleIssues);
+
+  if (colony.buildings.groundAnchors > 0) {
+    const anchorMaintenance = colony.buildings.groundAnchors;
+    if (colony.supplies >= anchorMaintenance) {
+      colony.supplies -= anchorMaintenance;
+      addColonyLog(`Ground Anchor maintenance consumed ${anchorMaintenance} supplies.`, '');
+    } else {
+      const missing = anchorMaintenance - colony.supplies;
+      colony.supplies = 0;
+      const decay = Math.min(colony.buildings.groundAnchors, Math.max(1, Math.ceil(missing / 4)));
+      colony.buildings.groundAnchors -= decay;
+      addColonyLog(`Ground Anchor maintenance failed. ${decay} anchor(s) decayed.`, 'bad');
+      if (colony.mainland && Array.isArray(colony.mainland.buildingTiles) && colony.mainland.buildingTiles.length > 0) {
+        let removed = 0;
+        while (removed < decay) {
+          const anchors = colony.mainland.buildingTiles.filter((tile) => tile.kind === 'groundAnchors');
+          if (anchors.length === 0) {
+            break;
+          }
+          const pick = anchors[randInt(0, anchors.length - 1)];
+          removeMainlandBuildingTile(pick, 'anchor decay');
+          removed += 1;
+        }
+      }
+      cycleIssues.push('anchor maintenance failure');
+    }
+  }
 
   const caps = getColonyCaps(colony);
   colony.food = Math.min(caps.food, colony.food);
@@ -3308,6 +3509,7 @@ function resolveRegionCycleEvents(region, cycleIssues) {
   const colony = state.colony;
   const defense = getColonyDefense(colony);
   const attackCapDefense = getAttackRollCapDefense(colony);
+  const mineThreatBonus = getMineThreatBonusChance(colony);
 
   const raidChance = region.id !== 'capital' ? (colony.frontierWar ? 0.56 : 0.28) : 0;
   if (region.id !== 'capital' && Math.random() < raidChance) {
@@ -3347,7 +3549,7 @@ function resolveRegionCycleEvents(region, cycleIssues) {
     }
   }
 
-  if (region.id === 'flats' && Math.random() < 0.26) {
+  if (region.id === 'flats' && Math.random() < (0.26 + mineThreatBonus)) {
     if (defense > 0 && Math.random() < 0.7) {
       colony.stability = Math.max(0, colony.stability - 4);
       addColonyLog('Barracks robots drove off wormsign before the flats broke open.', 'good');
@@ -3359,7 +3561,7 @@ function resolveRegionCycleEvents(region, cycleIssues) {
       cycleIssues.push('worm attack');
     }
   }
-  if (region.id === 'flats' && Math.random() < 0.32) {
+  if (region.id === 'flats' && Math.random() < (0.32 + mineThreatBonus)) {
     const eaten = randInt(12, 36);
     colony.supplies = Math.max(0, colony.supplies - eaten);
     addColonyLog(`A worm tunnel opened under storage in the flats. Supplies -${eaten}.`, 'bad');
@@ -3384,7 +3586,7 @@ function resolveRegionCycleEvents(region, cycleIssues) {
       addColonyLog(`Nibbloraxes stripped ${foodLoss} food from the depots.`, 'bad');
       cycleIssues.push('Nibblorax infestation');
     }
-    if (Math.random() < 0.35) {
+    if (Math.random() < (0.35 + mineThreatBonus)) {
       const eaten = randInt(16, 44);
       colony.supplies = Math.max(0, colony.supplies - eaten);
       addColonyLog(`A worm burrow devoured ${eaten} supplies in the Mergi sink fields.`, 'bad');
@@ -3650,15 +3852,6 @@ function buyItem(kind) {
     return;
   }
 
-  const prices = {
-    repair: 15,
-    spray: 5,
-    bouncer: 30,
-    maxHp: 50,
-    sonar: 100,
-    investor: 75,
-  };
-
   const labels = {
     repair: 'Repair Kit',
     spray: 'Anti-Nib Spray',
@@ -3668,12 +3861,13 @@ function buyItem(kind) {
     investor: 'Investor',
   };
 
-  if (state.points < prices[kind]) {
+  const price = getStorePrice(kind);
+  if (state.points < price) {
     addLog(`Not enough points for ${labels[kind]}.`, 'bad');
     return;
   }
 
-  state.points -= prices[kind];
+  state.points -= price;
 
   if (kind === 'repair') {
     state.inventory.repairKits += 1;
@@ -3693,7 +3887,7 @@ function buyItem(kind) {
   }
 
   storePoints();
-  addLog(`Bought ${labels[kind]} for ${prices[kind]} points.`, 'good');
+  addLog(`Bought ${labels[kind]} for ${price} points.`, 'good');
   syncHud();
   syncInventoryUi();
 }
@@ -3954,16 +4148,16 @@ function syncInventoryUi() {
   const inactive = !state.running || state.gameOver || state.traderOpen || state.tabletOpen;
   repairBtn.disabled = inactive || state.inventory.repairKits <= 0 || state.hp >= state.maxHp;
   sprayBtn.disabled = inactive || state.inventory.antiNibSpray <= 0 || state.sprayArmed;
-  sonarBtn.disabled = inactive || state.inventory.sonarDisrupter <= 0 || state.sonarArmed;
-  bouncerBtn.disabled = inactive || state.inventory.bouncer <= 0;
+  sonarBtn.disabled = inactive || state.inventory.sonarDisrupter <= 0 || state.sonarArmed || state.cooldowns.sonar > 0;
+  bouncerBtn.disabled = inactive || state.inventory.bouncer <= 0 || state.cooldowns.bouncer > 0;
   pickaxeBtn.disabled = inactive || state.inventory.specialPickaxes <= 0 || state.pickaxeArmed;
   windmillBtn.disabled = inactive || state.inventory.windmills <= 0 || state.windmillArmed;
-  buyRepairBtn.disabled = state.traderOpen || state.points < 15;
-  buySprayBtn.disabled = state.traderOpen || state.points < 5;
-  buyBouncerBtn.disabled = state.traderOpen || state.points < 30;
-  buyHpBtn.disabled = state.traderOpen || state.points < 50;
-  buySonarBtn.disabled = state.traderOpen || state.points < 100;
-  buyInvestorBtn.disabled = state.traderOpen || state.points < 75 || state.investorOwned;
+  buyRepairBtn.disabled = state.traderOpen || state.points < getStorePrice('repair');
+  buySprayBtn.disabled = state.traderOpen || state.points < getStorePrice('spray');
+  buyBouncerBtn.disabled = state.traderOpen || state.points < getStorePrice('bouncer');
+  buyHpBtn.disabled = state.traderOpen || state.points < getStorePrice('maxHp');
+  buySonarBtn.disabled = state.traderOpen || state.points < getStorePrice('sonar');
+  buyInvestorBtn.disabled = state.traderOpen || state.points < getStorePrice('investor') || state.investorOwned;
   if (state.lore.terrarex !== true) {
     readTabletBtn.disabled = true;
   }

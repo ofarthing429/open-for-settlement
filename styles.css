@@ -594,6 +594,39 @@ button:disabled {
     linear-gradient(-45deg, transparent 35%, #6fff66 35% 65%, transparent 65%);
 }
 
+.mainlandCell.detail-rock::before,
+.mainlandCell.detail-crack::before,
+.mainlandCell.detail-speck::before {
+  content: "";
+  position: absolute;
+}
+
+.mainlandCell.detail-rock::before {
+  width: 3px;
+  height: 2px;
+  left: 7px;
+  top: 8px;
+  background: rgba(25, 28, 36, 0.6);
+}
+
+.mainlandCell.detail-crack::before {
+  width: 5px;
+  height: 1px;
+  left: 1px;
+  top: 9px;
+  background: rgba(16, 19, 26, 0.7);
+  transform: rotate(-25deg);
+}
+
+.mainlandCell.detail-speck::before {
+  width: 1px;
+  height: 1px;
+  left: 9px;
+  top: 3px;
+  background: rgba(222, 210, 164, 0.55);
+  box-shadow: -3px 4px 0 rgba(222, 210, 164, 0.35);
+}
+
 .mainlandCell.built {
   background:
     linear-gradient(180deg, rgba(255, 232, 175, 0.42) 0 30%, transparent 30% 100%),
