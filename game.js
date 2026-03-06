@@ -1264,6 +1264,71 @@ function buildMainlandSpecialTiles(core) {
   return tiles;
 }
 
+function getMainlandSpecialTargets() {
+  const total = MAINLAND_MASK.size;
+  return {
+    copper: Math.max(24, Math.round(total * 0.1)),
+    hive: Math.max(28, Math.round(total * 0.12)),
+    camp: Math.max(20, Math.round(total * 0.08)),
+    river: Math.max(26, Math.round(total * 0.11)),
+    burrow: Math.max(18, Math.round(total * 0.07)),
+    corruptor: Math.max(18, Math.round(total * 0.07)),
+  };
+}
+
+function enrichMainlandSpecialTiles(mainland) {
+  if (!mainland || !Array.isArray(mainland.specialTiles)) {
+    return false;
+  }
+  const targets = getMainlandSpecialTargets();
+  const counts = {
+    copper: 0,
+    hive: 0,
+    camp: 0,
+    river: 0,
+    burrow: 0,
+    corruptor: 0,
+  };
+  for (const tile of mainland.specialTiles) {
+    if (counts[tile.type] !== undefined) {
+      counts[tile.type] += 1;
+    }
+  }
+  const used = new Set(mainland.specialTiles.map((tile) => `${tile.x},${tile.y}`));
+  const coreKey = mainland.core ? `${mainland.core.x},${mainland.core.y}` : '';
+  const landTiles = [...MAINLAND_MASK].filter((key) => key !== coreKey);
+  const placeTile = (type) => {
+    const pool = landTiles.filter((key) => !used.has(key));
+    if (pool.length === 0) {
+      return false;
+    }
+    const chosen = pool[randInt(0, pool.length - 1)];
+    const [x, y] = chosen.split(',').map(Number);
+    mainland.specialTiles.push({
+      x,
+      y,
+      type,
+      discovered: false,
+      cleared: false,
+      bugsRemaining: 0,
+    });
+    used.add(chosen);
+    return true;
+  };
+
+  let changed = false;
+  for (const [type, target] of Object.entries(targets)) {
+    while ((counts[type] || 0) < target) {
+      if (!placeTile(type)) {
+        break;
+      }
+      counts[type] += 1;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 function normalizeBuildings(buildings = {}) {
   return {
     farms: Number.isFinite(buildings.farms) ? buildings.farms : 1,
@@ -1405,6 +1470,8 @@ function normalizeMainlandState(mainland) {
         bugsRemaining: Number.isFinite(tile.bugsRemaining) ? tile.bugsRemaining : 0,
       }))
     : fallback.specialTiles;
+  // Migration: enrich old mainland saves so they are not barren after balance updates.
+  enrichMainlandSpecialTiles(parsed);
   parsed.log = Array.isArray(parsed.log)
     ? parsed.log.map((entry) => (typeof entry === 'string' ? { text: entry, tone: '' } : entry))
     : [];
@@ -2211,6 +2278,7 @@ function openIslandTakeoverPanel() {
     state.colony.mainland.actionsLeft = getMainlandColonyCount() * 4;
     addMainlandLog('Island Takeover command online. You can place 4 builds per colony this cycle.', 'good');
   }
+  enrichMainlandSpecialTiles(state.colony.mainland);
 
   state.islandOpen = true;
   state.marketOpen = false;
@@ -2290,6 +2358,7 @@ function handleMainlandCellClick(x, y) {
   state.colony.mainland.actionsLeft = Math.max(0, state.colony.mainland.actionsLeft - 1);
   state.colony.mainland.territory.push({ x, y });
   state.colony.mainland.buildingTiles.push({ x, y, kind: pending.kind });
+  enrichMainlandSpecialTiles(state.colony.mainland);
   resolveMainlandClaim({ x, y });
   addColonyLog(`${BUILDING_DATA[pending.kind].label} completed at ${x},${y}. Cost: ${pending.suppliesCost} supplies, ${pending.plutoniumCost || 0} plutonium.`, 'good');
   addMainlandLog(`Ground Anchor placed at ${x},${y}. Buildings within 2 squares are protected.`, 'good');
@@ -2331,6 +2400,7 @@ function placeMainlandBuildingTile(kind) {
   const chosen = candidates[randInt(0, candidates.length - 1)];
   mainland.territory.push({ x: chosen.x, y: chosen.y });
   mainland.buildingTiles.push({ x: chosen.x, y: chosen.y, kind });
+  enrichMainlandSpecialTiles(mainland);
   addMainlandLog(`Built ${BUILDING_DATA[kind].label} at ${chosen.x},${chosen.y}.`, 'good');
   resolveMainlandClaim(chosen);
   return true;
