@@ -1660,6 +1660,28 @@ function getEmpireColonies(colony = state.colony) {
   return [colony, ...(Array.isArray(colony.supportColonies) ? colony.supportColonies : [])];
 }
 
+function shiftEmpireStability(amount, source = 'mainland pressure') {
+  if (!state.colony || !Number.isFinite(amount) || amount === 0) {
+    return 0;
+  }
+  const colonies = getEmpireColonies(state.colony);
+  let totalShift = 0;
+  for (const colony of colonies) {
+    if (!colony || !Number.isFinite(colony.stability)) {
+      continue;
+    }
+    const before = colony.stability;
+    colony.stability = Math.max(0, Math.min(100, colony.stability + amount));
+    totalShift += colony.stability - before;
+  }
+  if (totalShift !== 0) {
+    const direction = totalShift < 0 ? 'down' : 'up';
+    const magnitude = Math.abs(totalShift);
+    addMainlandLog(`Empire stability ${direction} (${magnitude}) from ${source}.`, totalShift < 0 ? 'bad' : 'good');
+  }
+  return totalShift;
+}
+
 function hasFullControlAcrossRegions(colony = state.colony) {
   const empire = getEmpireColonies(colony);
   if (empire.length === 0) {
@@ -2687,11 +2709,16 @@ function advanceCoralCorruptors() {
   const spreadChance = Math.min(0.82, 0.48 + (getMineThreatBonusChance(state.colony) * 1.1));
 
   for (const node of corruptors) {
+    // Corruptors inside stabilized anchor zones go dormant.
+    if (isTileProtectedByGroundAnchor(node)) {
+      continue;
+    }
+
     // Corruptor directly destroys any building on its tile.
     const localBuilding = (mainland.buildingTiles || []).find((tile) => tile.x === node.x && tile.y === node.y);
     if (localBuilding) {
       if (isTileProtectedByGroundAnchor(localBuilding)) {
-        addMainlandLog(`Corruptor at ${node.x},${node.y} was blocked by Ground Anchor coverage.`, 'good');
+        // Protected squares ignore corruptor damage.
       } else {
         removeMainlandBuildingTile(localBuilding, 'coral corruptor');
         destroyedCount += 1;
@@ -2700,7 +2727,7 @@ function advanceCoralCorruptors() {
 
     if (Math.random() < spreadChance) {
       const neighbors = getLandNeighbors(node.x, node.y)
-        .filter((tile) => !occupiedSpecials.has(`${tile.x},${tile.y}`));
+        .filter((tile) => !occupiedSpecials.has(`${tile.x},${tile.y}`) && !isTileProtectedByGroundAnchor(tile));
       if (neighbors.length > 0) {
         const chosen = neighbors[randInt(0, neighbors.length - 1)];
         mainland.specialTiles.push({
@@ -2717,7 +2744,7 @@ function advanceCoralCorruptors() {
         const hitBuilding = (mainland.buildingTiles || []).find((tile) => tile.x === chosen.x && tile.y === chosen.y);
         if (hitBuilding) {
           if (isTileProtectedByGroundAnchor(hitBuilding)) {
-            addMainlandLog(`Corruptor spread at ${chosen.x},${chosen.y} was blocked by Ground Anchor coverage.`, 'good');
+            // Protected squares ignore corruptor spread damage.
           } else {
             removeMainlandBuildingTile(hitBuilding, 'coral corruptor spread');
             destroyedCount += 1;
@@ -2791,8 +2818,8 @@ function advanceMainlandCycle() {
     const raid = randInt(0, Math.max(0, getAttackRollCapDefense(state.colony) * 2));
     if (getColonyDefense(state.colony) < raid) {
       const loss = Math.max(6, raid - getColonyDefense(state.colony));
-      state.colony.stability = Math.max(0, state.colony.stability - loss);
-      addMainlandLog(`Mainland raids hit with ${raid} force. Stability -${loss}.`, 'bad');
+      shiftEmpireStability(-loss, 'mainland raids');
+      addMainlandLog(`Mainland raids hit with ${raid} force.`, 'bad');
       if (Math.random() < 0.5) {
         destroyRandomMainlandBuilding('raiders');
       }
