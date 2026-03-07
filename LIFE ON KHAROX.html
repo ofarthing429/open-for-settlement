@@ -50,6 +50,31 @@
         z-index: 2;
       }
 
+      #flora-layer {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 1;
+      }
+
+      .flora {
+        position: fixed;
+        width: 34px;
+        height: 34px;
+        transform: translate(-50%, -50%);
+        border-radius: 999px;
+        background:
+          radial-gradient(circle at 50% 50%, rgba(255, 214, 255, 0.96) 0 14%, rgba(233, 176, 255, 0.92) 15% 24%, transparent 25%),
+          radial-gradient(circle at 50% 12%, rgba(206, 136, 255, 0.92) 0 28%, transparent 29%),
+          radial-gradient(circle at 84% 36%, rgba(193, 116, 250, 0.9) 0 28%, transparent 29%),
+          radial-gradient(circle at 84% 68%, rgba(177, 98, 244, 0.88) 0 28%, transparent 29%),
+          radial-gradient(circle at 50% 88%, rgba(164, 89, 232, 0.9) 0 28%, transparent 29%),
+          radial-gradient(circle at 16% 68%, rgba(177, 98, 244, 0.88) 0 28%, transparent 29%),
+          radial-gradient(circle at 16% 36%, rgba(193, 116, 250, 0.9) 0 28%, transparent 29%);
+        filter: drop-shadow(0 0 10px rgba(196, 114, 255, 0.5));
+        will-change: transform, opacity;
+      }
+
       .remote-player {
         position: fixed;
         width: 46px;
@@ -97,6 +122,23 @@
         overflow: hidden;
         pointer-events: none;
         z-index: 2;
+      }
+
+      #globe-flora-layer {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .globe-flora {
+        position: absolute;
+        width: 6px;
+        height: 6px;
+        transform: translate(-50%, -50%);
+        border-radius: 999px;
+        background: radial-gradient(circle at 35% 35%, rgba(255, 224, 255, 0.98), rgba(196, 110, 248, 0.96));
+        box-shadow: 0 0 7px rgba(206, 118, 255, 0.75);
+        opacity: 0.95;
       }
 
       #position {
@@ -243,7 +285,10 @@
   </head>
   <body>
     <canvas id="water"></canvas>
-    <div id="minimap-frame"></div>
+    <div id="flora-layer"></div>
+    <div id="minimap-frame">
+      <div id="globe-flora-layer"></div>
+    </div>
     <div id="remote-layer"></div>
     <div id="player"></div>
     <div id="net-status">NET: SOLO</div>
@@ -263,9 +308,11 @@
     <script>
       const canvas = document.getElementById('water');
       const minimapFrame = document.getElementById('minimap-frame');
+      const globeFloraLayerEl = document.getElementById('globe-flora-layer');
       const positionEl = document.getElementById('position');
       const hintEl = document.querySelector('.hint');
       const playerEl = document.getElementById('player');
+      const floraLayerEl = document.getElementById('flora-layer');
       const remoteLayerEl = document.getElementById('remote-layer');
       const netStatusEl = document.getElementById('net-status');
       const startScreenEl = document.getElementById('start-screen');
@@ -557,11 +604,33 @@
           right: 0,
         },
       };
+      const inputState = {
+        consume: false,
+      };
       const minimap = {
         x: 0,
         y: 0,
         size: 0,
         marginCss: 14
+      };
+      const FLORA = {
+        minPopulation: 220,
+        maxPopulation: 780,
+        matureAge: 5.5,
+        spreadTickSec: 0.24,
+        spreadChancePerTick: 0.3,
+        spreadDistMin: 0.35,
+        spreadDistMax: 1.15,
+        consumeRadius: 0.3,
+        polarMargin: POLAR_CAP_MARGIN + 0.16,
+        guaranteedNearPlayer: 14,
+        nearPlayerRadius: 2.3,
+      };
+      const flora = {
+        nextId: 1,
+        blooms: [],
+        eatenByBlue: 0,
+        globeMarkers: [],
       };
 
       function wrap(v, max) {
@@ -618,6 +687,213 @@
         const abs = Math.abs(value).toFixed(2);
         const hemi = value >= 0 ? posLabel : negLabel;
         return `${abs}${hemi}`;
+      }
+
+      function randomBetween(min, max) {
+        return min + (Math.random() * (max - min));
+      }
+
+      function dot3(a, b) {
+        return (a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2]);
+      }
+
+      function worldToUnitVec(x, y) {
+        const tau = Math.PI * 2;
+        const pi = Math.PI;
+        const lon = (x / WORLD.w) * tau - pi;
+        const lat = (y / WORLD.h) * pi - (pi * 0.5);
+        const cl = Math.cos(lat);
+        return [cl * Math.cos(lon), Math.sin(lat), cl * Math.sin(lon)];
+      }
+
+      function randomHabitableY() {
+        return randomBetween(FLORA.polarMargin, WORLD.h - FLORA.polarMargin);
+      }
+
+      function createBloom(x, y, age = 0) {
+        if (flora.blooms.length >= FLORA.maxPopulation) return null;
+        const el = document.createElement('div');
+        el.className = 'flora';
+        floraLayerEl.appendChild(el);
+        const bloom = {
+          id: flora.nextId++,
+          x: wrap(x, WORLD.w),
+          y: clamp(y, FLORA.polarMargin, WORLD.h - FLORA.polarMargin),
+          age,
+          spreadClock: randomBetween(0, FLORA.spreadTickSec),
+          seed: Math.random() * Math.PI * 2,
+          el,
+        };
+        flora.blooms.push(bloom);
+        return bloom;
+      }
+
+      function removeBloomAt(index) {
+        const bloom = flora.blooms[index];
+        if (!bloom) return;
+        if (bloom.el && bloom.el.parentNode) bloom.el.parentNode.removeChild(bloom.el);
+        flora.blooms.splice(index, 1);
+      }
+
+      function seedFloraIfNeeded() {
+        let needed = FLORA.minPopulation - flora.blooms.length;
+        while (needed > 0) {
+          const batch = Math.min(needed, 8);
+          for (let i = 0; i < batch; i++) {
+            createBloom(randomBetween(0, WORLD.w), randomHabitableY(), randomBetween(0, FLORA.matureAge));
+          }
+          needed -= batch;
+        }
+      }
+
+      function countNearbyBlooms(cx, cy, radius) {
+        const r2 = radius * radius;
+        let count = 0;
+        for (let i = 0; i < flora.blooms.length; i++) {
+          const bloom = flora.blooms[i];
+          const dx = torusSignedDelta(cx, bloom.x, WORLD.w);
+          const dy = torusSignedDelta(cy, bloom.y, WORLD.h);
+          if ((dx * dx) + (dy * dy) <= r2) count += 1;
+        }
+        return count;
+      }
+
+      function seedNearPlayerIfNeeded() {
+        const needed = FLORA.guaranteedNearPlayer - countNearbyBlooms(player.x, player.y, FLORA.nearPlayerRadius);
+        if (needed <= 0) return;
+        for (let i = 0; i < needed; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const dist = Math.random() * FLORA.nearPlayerRadius;
+          const nx = wrap(player.x + Math.cos(angle) * dist, WORLD.w);
+          const ny = clamp(player.y + Math.sin(angle) * dist, FLORA.polarMargin, WORLD.h - FLORA.polarMargin);
+          createBloom(nx, ny, randomBetween(0, FLORA.matureAge));
+        }
+      }
+
+      function attemptBloomSpread(bloom) {
+        if (flora.blooms.length >= FLORA.maxPopulation) return;
+        const angle = Math.random() * Math.PI * 2;
+        const dist = randomBetween(FLORA.spreadDistMin, FLORA.spreadDistMax);
+        const nx = wrap(bloom.x + Math.cos(angle) * dist, WORLD.w);
+        const ny = clamp(bloom.y + Math.sin(angle) * dist, FLORA.polarMargin, WORLD.h - FLORA.polarMargin);
+
+        for (let i = 0; i < flora.blooms.length; i++) {
+          const other = flora.blooms[i];
+          const ddx = torusSignedDelta(nx, other.x, WORLD.w);
+          const ddy = torusSignedDelta(ny, other.y, WORLD.h);
+          if ((ddx * ddx) + (ddy * ddy) < 0.08) {
+            return;
+          }
+        }
+
+        createBloom(nx, ny, 0);
+      }
+
+      function updateFlora(dt) {
+        seedFloraIfNeeded();
+        seedNearPlayerIfNeeded();
+
+        for (let i = 0; i < flora.blooms.length; i++) {
+          const bloom = flora.blooms[i];
+          bloom.age += dt;
+
+          if (bloom.age >= FLORA.matureAge) {
+            bloom.spreadClock += dt;
+            while (bloom.spreadClock >= FLORA.spreadTickSec) {
+              bloom.spreadClock -= FLORA.spreadTickSec;
+              if (Math.random() < FLORA.spreadChancePerTick) {
+                attemptBloomSpread(bloom);
+              }
+            }
+          }
+        }
+
+        if (state.lifeType === 'blue' && state.movementEnabled && inputState.consume) {
+          for (let i = flora.blooms.length - 1; i >= 0; i--) {
+            const bloom = flora.blooms[i];
+            const dx = torusSignedDelta(player.x, bloom.x, WORLD.w);
+            const dy = torusSignedDelta(player.y, bloom.y, WORLD.h);
+            if ((dx * dx) + (dy * dy) <= (FLORA.consumeRadius * FLORA.consumeRadius)) {
+              flora.eatenByBlue += 1;
+              removeBloomAt(i);
+            }
+          }
+        }
+      }
+
+      function renderFlora(t) {
+        const pxPerWorld = window.innerHeight / VIEW_SCALE;
+        for (let i = 0; i < flora.blooms.length; i++) {
+          const bloom = flora.blooms[i];
+          const dx = torusSignedDelta(bloom.x, player.x, WORLD.w);
+          const dy = torusSignedDelta(bloom.y, player.y, WORLD.h);
+          const sx = (window.innerWidth * 0.5) + (dx * pxPerWorld);
+          const sy = (window.innerHeight * 0.5) - (dy * pxPerWorld);
+          const out = sx < -60 || sx > window.innerWidth + 60 || sy < -60 || sy > window.innerHeight + 60;
+          bloom.el.style.display = out ? 'none' : 'block';
+          if (out) continue;
+
+          const growth = Math.min(1, bloom.age / FLORA.matureAge);
+          const pulse = 1 + (Math.sin((t * 2.4) + bloom.seed) * 0.08 * growth);
+          const scale = (0.24 + (0.76 * growth)) * pulse;
+          const alpha = 0.34 + (0.66 * growth);
+          bloom.el.style.opacity = alpha.toFixed(3);
+          bloom.el.style.transform = `translate(${sx.toFixed(2)}px, ${sy.toFixed(2)}px) translate(-50%, -50%) scale(${scale.toFixed(3)})`;
+        }
+      }
+
+      function ensureGlobeMarker(index) {
+        if (flora.globeMarkers[index]) return flora.globeMarkers[index];
+        const el = document.createElement('div');
+        el.className = 'globe-flora';
+        globeFloraLayerEl.appendChild(el);
+        flora.globeMarkers[index] = el;
+        return el;
+      }
+
+      function renderFloraOnGlobe() {
+        const size = minimapFrame.clientWidth;
+        if (!size) return;
+
+        const tau = Math.PI * 2;
+        const pi = Math.PI;
+        const playerLon = (player.x / WORLD.w) * tau - pi;
+        const playerLat = (player.y / WORLD.h) * pi - (pi * 0.5);
+        const east = [-Math.sin(playerLon), 0, Math.cos(playerLon)];
+        const north = [
+          -Math.sin(playerLat) * Math.cos(playerLon),
+          Math.cos(playerLat),
+          -Math.sin(playerLat) * Math.sin(playerLon),
+        ];
+        const up = [
+          Math.cos(playerLat) * Math.cos(playerLon),
+          Math.sin(playerLat),
+          Math.cos(playerLat) * Math.sin(playerLon),
+        ];
+
+        let markerIndex = 0;
+        for (let i = 0; i < flora.blooms.length; i++) {
+          const bloom = flora.blooms[i];
+          const v = worldToUnitVec(bloom.x, bloom.y);
+          const sx = dot3(v, east);
+          const sy = dot3(v, north);
+          const sz = dot3(v, up);
+          if (sz <= 0) continue;
+
+          const el = ensureGlobeMarker(markerIndex++);
+          const x = (sx * 0.5 + 0.5) * size;
+          const y = (0.5 - sy * 0.5) * size;
+          const growth = Math.min(1, bloom.age / FLORA.matureAge);
+          const markerScale = 0.7 + (growth * 0.9);
+          el.style.display = 'block';
+          el.style.left = `${x.toFixed(2)}px`;
+          el.style.top = `${y.toFixed(2)}px`;
+          el.style.transform = `translate(-50%, -50%) scale(${markerScale.toFixed(3)})`;
+        }
+
+        for (let i = markerIndex; i < flora.globeMarkers.length; i++) {
+          flora.globeMarkers[i].style.display = 'none';
+        }
       }
 
       function updateNetStatus(text) {
@@ -831,7 +1107,7 @@
           playerEl.style.backgroundColor = 'transparent';
           playerEl.style.backgroundImage = `url("${SPRITES.blue}")`;
           playerEl.style.filter = 'drop-shadow(0 0 14px rgba(124, 219, 255, 0.65))';
-          hintEl.textContent = 'BLUE BACTERIA selected. Move with WASD / arrows. Double-tap a direction to run.';
+          hintEl.textContent = 'BLUE BACTERIA selected. Hold SPACE to eat purple flowers. Move with WASD / arrows. Double-tap a direction to run.';
         } else {
           playerEl.style.backgroundColor = 'transparent';
           playerEl.style.backgroundImage = `url("${SPRITES.red}")`;
@@ -879,6 +1155,11 @@
 
       window.addEventListener('keydown', (e) => {
         const key = e.key.toLowerCase();
+        if (key === ' ') {
+          e.preventDefault();
+          inputState.consume = true;
+          return;
+        }
         const dirId = keyToDirId(key);
         if (dirId) {
           e.preventDefault();
@@ -896,6 +1177,11 @@
 
       window.addEventListener('keyup', (e) => {
         const key = e.key.toLowerCase();
+        if (key === ' ') {
+          e.preventDefault();
+          inputState.consume = false;
+          return;
+        }
         const dirId = keyToDirId(key);
         if (dirId) {
           e.preventDefault();
@@ -909,6 +1195,7 @@
 
       window.addEventListener('blur', () => {
         keys.clear();
+        inputState.consume = false;
         runState.sprinting = false;
         runState.sprintDir = '';
       });
@@ -982,6 +1269,9 @@
 
         const sprintingNow = runState.sprinting && runState.sprintDir && isDirHeld(runState.sprintDir);
         updatePlayerVisuals(dt, sprintingNow ? RUN_MULTIPLIER : 1);
+        updateFlora(dt);
+        renderFlora(t);
+        renderFloraOnGlobe();
         renderPeers(dt);
         sendLocalState(false);
 
@@ -1009,7 +1299,9 @@
         const lat = toLatitude(player.y, WORLD.h);
         const lng = toLongitude(player.x, WORLD.w);
         const lifeLabel = state.lifeType === 'blue' ? 'BLUE BACTERIA' : state.lifeType === 'red' ? 'RED VIRUS' : 'UNSELECTED';
-        positionEl.textContent = `lat ${formatHemisphere(lat, 'N', 'S')}, lng ${formatHemisphere(lng, 'E', 'W')} | ${lifeLabel}`;
+        const foodLabel = `FLOWERS ${flora.blooms.length}`;
+        const ateLabel = state.lifeType === 'blue' ? ` | EATEN ${flora.eatenByBlue}` : '';
+        positionEl.textContent = `lat ${formatHemisphere(lat, 'N', 'S')}, lng ${formatHemisphere(lng, 'E', 'W')} | ${lifeLabel} | ${foodLabel}${ateLabel}`;
 
         requestAnimationFrame(frame);
       }
