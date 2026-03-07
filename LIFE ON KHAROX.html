@@ -43,6 +43,47 @@
         will-change: transform, filter;
       }
 
+      #remote-layer {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 2;
+      }
+
+      .remote-player {
+        position: fixed;
+        width: 46px;
+        height: 46px;
+        transform: translate(-50%, -50%);
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        filter: drop-shadow(0 0 10px rgba(235, 211, 255, 0.5));
+        will-change: transform;
+      }
+
+      .remote-player.blue {
+        filter: drop-shadow(0 0 12px rgba(124, 219, 255, 0.62));
+      }
+
+      .remote-player.red {
+        filter: drop-shadow(0 0 12px rgba(255, 124, 171, 0.68));
+      }
+
+      .remote-label {
+        position: absolute;
+        left: 50%;
+        top: -14px;
+        transform: translateX(-50%);
+        font: 600 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: rgba(243, 233, 255, 0.88);
+        background: rgba(19, 11, 30, 0.55);
+        border: 1px solid rgba(194, 146, 255, 0.34);
+        border-radius: 999px;
+        padding: 2px 6px;
+        white-space: nowrap;
+      }
+
       #minimap-frame {
         position: fixed;
         right: 14px;
@@ -88,6 +129,21 @@
         user-select: none;
         pointer-events: none;
         z-index: 3;
+      }
+
+      #net-status {
+        position: fixed;
+        left: 12px;
+        top: 12px;
+        font: 600 12px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: rgba(232, 212, 255, 0.9);
+        background: rgba(24, 14, 40, 0.54);
+        border: 1px solid rgba(194, 146, 255, 0.34);
+        border-radius: 8px;
+        padding: 7px 10px;
+        user-select: none;
+        pointer-events: none;
+        z-index: 4;
       }
 
       #start-screen {
@@ -188,7 +244,9 @@
   <body>
     <canvas id="water"></canvas>
     <div id="minimap-frame"></div>
+    <div id="remote-layer"></div>
     <div id="player"></div>
+    <div id="net-status">NET: SOLO</div>
     <div id="position">lat 0.00N, lng 0.00E</div>
     <div class="hint">WASD / arrows move the world (you stay centered)</div>
     <section id="start-screen" aria-label="Life type selection">
@@ -208,6 +266,8 @@
       const positionEl = document.getElementById('position');
       const hintEl = document.querySelector('.hint');
       const playerEl = document.getElementById('player');
+      const remoteLayerEl = document.getElementById('remote-layer');
+      const netStatusEl = document.getElementById('net-status');
       const startScreenEl = document.getElementById('start-screen');
       const chooseBlueEl = document.getElementById('choose-blue');
       const chooseRedEl = document.getElementById('choose-red');
@@ -475,6 +535,16 @@
         moving: false,
         crawlPhase: 0,
       };
+      const net = {
+        wsUrl: '',
+        socket: null,
+        connected: false,
+        connecting: false,
+        reconnectAttempt: 0,
+        id: '',
+        peers: new Map(),
+        lastSentMs: 0,
+      };
 
       const keys = new Set();
       const runState = {
@@ -498,6 +568,13 @@
         let n = v % max;
         if (n < 0) n += max;
         return n;
+      }
+
+      function torusSignedDelta(a, b, max) {
+        let d = a - b;
+        if (d > max * 0.5) d -= max;
+        if (d < -max * 0.5) d += max;
+        return d;
       }
 
       function clamp(v, min, max) {
@@ -543,6 +620,206 @@
         return `${abs}${hemi}`;
       }
 
+      function updateNetStatus(text) {
+        netStatusEl.textContent = text;
+      }
+
+      function readWsUrl() {
+        const fromQuery = new URLSearchParams(location.search).get('ws');
+        if (fromQuery) return fromQuery;
+        if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+          return `ws://${location.hostname}:8080`;
+        }
+        return '';
+      }
+
+      function spriteForLifeType(type) {
+        return type === 'red' ? SPRITES.red : SPRITES.blue;
+      }
+
+      function ensurePeerElement(peer) {
+        if (peer.el) return;
+        const el = document.createElement('div');
+        el.className = `remote-player ${peer.lifeType || 'blue'}`;
+        el.style.backgroundImage = `url("${spriteForLifeType(peer.lifeType)}")`;
+        const label = document.createElement('div');
+        label.className = 'remote-label';
+        label.textContent = peer.id.slice(0, 5).toUpperCase();
+        el.appendChild(label);
+        remoteLayerEl.appendChild(el);
+        peer.el = el;
+      }
+
+      function upsertPeer(data) {
+        if (!data || !data.id || data.id === net.id) return;
+        const peer = net.peers.get(data.id) || {
+          id: data.id,
+          x: WORLD.w * 0.5,
+          y: WORLD.h * 0.5,
+          lifeType: 'blue',
+          moveAngleDeg: 0,
+          flipX: false,
+          moving: false,
+          crawlPhase: 0,
+          lastSeen: 0,
+          el: null,
+        };
+        const nextX = Number(data.x);
+        const nextY = Number(data.y);
+        peer.x = wrap(Number.isFinite(nextX) ? nextX : peer.x, WORLD.w);
+        peer.y = clamp(Number.isFinite(nextY) ? nextY : peer.y, POLAR_MIN_Y, POLAR_MAX_Y);
+        peer.lifeType = data.lifeType === 'red' ? 'red' : 'blue';
+        peer.moveAngleDeg = Number.isFinite(data.moveAngleDeg) ? data.moveAngleDeg : peer.moveAngleDeg;
+        peer.flipX = Boolean(data.flipX);
+        peer.moving = Boolean(data.moving);
+        peer.lastSeen = performance.now();
+        ensurePeerElement(peer);
+        peer.el.classList.toggle('blue', peer.lifeType === 'blue');
+        peer.el.classList.toggle('red', peer.lifeType === 'red');
+        peer.el.style.backgroundImage = `url("${spriteForLifeType(peer.lifeType)}")`;
+        net.peers.set(peer.id, peer);
+      }
+
+      function removePeer(id) {
+        const peer = net.peers.get(id);
+        if (!peer) return;
+        if (peer.el && peer.el.parentNode) peer.el.parentNode.removeChild(peer.el);
+        net.peers.delete(id);
+      }
+
+      function renderPeers(dt) {
+        const pxPerWorld = window.innerHeight / VIEW_SCALE;
+        const now = performance.now();
+
+        for (const peer of net.peers.values()) {
+          if (now - peer.lastSeen > 15000) {
+            removePeer(peer.id);
+            continue;
+          }
+
+          const dx = torusSignedDelta(peer.x, player.x, WORLD.w);
+          const dy = torusSignedDelta(peer.y, player.y, WORLD.h);
+          const sx = (window.innerWidth * 0.5) + (dx * pxPerWorld);
+          const sy = (window.innerHeight * 0.5) - (dy * pxPerWorld);
+          const out = sx < -80 || sx > window.innerWidth + 80 || sy < -80 || sy > window.innerHeight + 80;
+          peer.el.style.display = out ? 'none' : 'block';
+          if (out) continue;
+
+          if (peer.moving) peer.crawlPhase += dt * 7.0;
+
+          if (peer.lifeType === 'blue') {
+            const thrust = peer.moving ? Math.max(0, Math.sin(peer.crawlPhase * 3.2)) : 0;
+            const recoil = peer.moving ? (-2.2 * thrust) : 0;
+            const stretch = peer.moving ? (1.0 + (0.08 * thrust)) : 1;
+            const squash = peer.moving ? (1.0 - (0.06 * thrust)) : 1;
+            const scaleX = peer.flipX ? -stretch : stretch;
+            peer.el.style.transform = `translate(${sx.toFixed(2)}px, ${(sy + recoil).toFixed(2)}px) translate(-50%, -50%) rotate(${peer.moveAngleDeg.toFixed(1)}deg) scale(${scaleX.toFixed(3)}, ${squash.toFixed(3)})`;
+          } else {
+            const bob = peer.moving ? Math.sin(peer.crawlPhase * 2.8) * 2.6 : 0;
+            const wiggle = peer.moving ? Math.sin(peer.crawlPhase * 3.9) * 8.0 : 0;
+            const squash = peer.moving ? (0.96 + (Math.sin(peer.crawlPhase * 5.4) * 0.06)) : 1;
+            const stretch = peer.moving ? (1.03 - (Math.sin(peer.crawlPhase * 5.4) * 0.05)) : 1;
+            const scaleX = peer.flipX ? -stretch : stretch;
+            peer.el.style.transform = `translate(${sx.toFixed(2)}px, ${(sy + bob).toFixed(2)}px) translate(-50%, -50%) rotate(${(peer.moveAngleDeg + wiggle).toFixed(1)}deg) scale(${scaleX.toFixed(3)}, ${squash.toFixed(3)})`;
+          }
+        }
+      }
+
+      function sendLocalState(force) {
+        if (!net.connected || !net.socket || net.socket.readyState !== WebSocket.OPEN || !state.lifeType) return;
+        const nowMs = performance.now();
+        if (!force && nowMs - net.lastSentMs < 90) return;
+        net.lastSentMs = nowMs;
+        net.socket.send(JSON.stringify({
+          type: 'state',
+          x: player.x,
+          y: player.y,
+          lifeType: state.lifeType,
+          moveAngleDeg: state.moveAngleDeg,
+          flipX: state.flipX,
+          moving: state.moving,
+        }));
+      }
+
+      function scheduleReconnect() {
+        if (!net.wsUrl || net.connected || net.connecting) return;
+        const delay = Math.min(9000, 1200 + (net.reconnectAttempt * 700));
+        net.reconnectAttempt += 1;
+        setTimeout(connectMultiplayer, delay);
+      }
+
+      function connectMultiplayer() {
+        if (!net.wsUrl) {
+          updateNetStatus('NET: SOLO (add ?ws=wss://server-url)');
+          return;
+        }
+        if (net.connected || net.connecting) return;
+
+        updateNetStatus('NET: CONNECTING...');
+        net.connecting = true;
+        const socket = new WebSocket(net.wsUrl);
+        net.socket = socket;
+
+        socket.addEventListener('open', () => {
+          net.connected = true;
+          net.connecting = false;
+          net.reconnectAttempt = 0;
+          updateNetStatus('NET: ONLINE');
+          socket.send(JSON.stringify({ type: 'hello' }));
+          sendLocalState(true);
+        });
+
+        socket.addEventListener('message', (event) => {
+          let data;
+          try {
+            data = JSON.parse(event.data);
+          } catch {
+            return;
+          }
+
+          if (data.type === 'welcome') {
+            net.id = String(data.id || '');
+            if (Array.isArray(data.players)) {
+              for (const p of data.players) upsertPeer(p);
+            }
+            return;
+          }
+
+          if (data.type === 'snapshot' && Array.isArray(data.players)) {
+            const keep = new Set();
+            for (const p of data.players) {
+              upsertPeer(p);
+              if (p && p.id) keep.add(p.id);
+            }
+            for (const id of Array.from(net.peers.keys())) {
+              if (!keep.has(id)) removePeer(id);
+            }
+            return;
+          }
+
+          if (data.type === 'upsert') {
+            upsertPeer(data.player);
+            return;
+          }
+
+          if (data.type === 'remove') {
+            removePeer(String(data.id || ''));
+          }
+        });
+
+        socket.addEventListener('close', () => {
+          net.connected = false;
+          net.connecting = false;
+          updateNetStatus('NET: OFFLINE (reconnecting...)');
+          for (const id of Array.from(net.peers.keys())) removePeer(id);
+          scheduleReconnect();
+        });
+
+        socket.addEventListener('error', () => {
+          updateNetStatus('NET: ERROR');
+        });
+      }
+
       function chooseLife(type) {
         state.lifeType = type;
         state.movementEnabled = true;
@@ -561,6 +838,7 @@
           playerEl.style.filter = 'drop-shadow(0 0 14px rgba(255, 124, 171, 0.72))';
           hintEl.textContent = 'RED VIRUS selected. Move with WASD / arrows. Double-tap a direction to run.';
         }
+        sendLocalState(true);
       }
 
       function updatePlayerVisuals(dt, speedFactor) {
@@ -704,6 +982,8 @@
 
         const sprintingNow = runState.sprinting && runState.sprintDir && isDirHeld(runState.sprintDir);
         updatePlayerVisuals(dt, sprintingNow ? RUN_MULTIPLIER : 1);
+        renderPeers(dt);
+        sendLocalState(false);
 
         resize();
 
@@ -735,6 +1015,8 @@
       }
 
       requestAnimationFrame(frame);
+      net.wsUrl = readWsUrl();
+      connectMultiplayer();
     </script>
   </body>
 </html>

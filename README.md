@@ -27,3 +27,28 @@ Open `index.html` in a browser.
 
 - No build step is required.
 - This is a static site and works directly on GitHub Pages.
+
+## Multiplayer (LIFE ON KHAROX)
+
+This project now includes a WebSocket multiplayer server:
+
+- `multiplayer-server.js`
+- `package.json` (uses `ws`)
+
+Run it locally:
+
+1. Install Node.js (if not installed).
+2. In the project folder, run:
+   - `npm install`
+   - `npm run server`
+3. Open the game with a `ws` query parameter:
+   - `file:///.../LIFE%20ON%20KHAROX.html?ws=ws://localhost:8080`
+   - or `http://localhost/.../LIFE%20ON%20KHAROX.html?ws=ws://localhost:8080`
+
+To play with friends online:
+
+1. Host `multiplayer-server.js` on a Node host (Render, Railway, Fly.io, etc.).
+2. Share the game link with:
+   - `?ws=wss://YOUR-SERVER-DOMAIN`
+
+If no `ws` URL is provided, the game runs in solo mode.
