@@ -602,6 +602,7 @@
         moving: false,
         crawlPhase: 0,
         energy: 72,
+        dead: false,
       };
       const net = {
         wsUrl: '',
@@ -895,6 +896,49 @@
 
       function addEnergy(amount) {
         state.energy = clamp(state.energy + amount, 0, ENERGY.max);
+      }
+
+      function updateLifeformVisual() {
+        if (state.lifeType === 'blue') {
+          playerEl.style.backgroundColor = 'transparent';
+          playerEl.style.backgroundImage = `url("${SPRITES.blue}")`;
+          playerEl.style.filter = state.dead
+            ? 'grayscale(1) brightness(0.6) drop-shadow(0 0 10px rgba(180, 180, 180, 0.45))'
+            : 'drop-shadow(0 0 14px rgba(124, 219, 255, 0.65))';
+          return;
+        }
+        if (state.lifeType === 'red') {
+          playerEl.style.backgroundColor = 'transparent';
+          playerEl.style.backgroundImage = `url("${SPRITES.red}")`;
+          playerEl.style.filter = state.dead
+            ? 'grayscale(1) brightness(0.6) drop-shadow(0 0 10px rgba(180, 180, 180, 0.45))'
+            : 'drop-shadow(0 0 14px rgba(255, 124, 171, 0.72))';
+        }
+      }
+
+      function killPlayer() {
+        if (state.dead) return;
+        state.dead = true;
+        state.movementEnabled = false;
+        state.moving = false;
+        runState.sprinting = false;
+        runState.sprintDir = '';
+        inputState.consume = false;
+        updateLifeformVisual();
+        hintEl.textContent = 'YOU DIED. Press R to respawn.';
+      }
+
+      function respawnPlayer() {
+        if (!state.dead || !state.lifeType) return;
+        state.dead = false;
+        state.energy = 72;
+        state.movementEnabled = true;
+        updateLifeformVisual();
+        if (state.lifeType === 'blue') {
+          hintEl.textContent = 'BLUE BACTERIA selected. Hold SPACE to eat purple flowers. Move with WASD / arrows. Double-tap a direction to run.';
+        } else {
+          hintEl.textContent = 'RED VIRUS selected. Hold SPACE near other players to consume them. Move with WASD / arrows. Double-tap a direction to run.';
+        }
       }
 
       function makeFaunaDirection() {
@@ -1337,6 +1381,7 @@
 
       function chooseLife(type) {
         state.lifeType = type;
+        state.dead = false;
         state.movementEnabled = true;
         state.energy = 72;
         chooseBlueEl.classList.toggle('selected', type === 'blue');
@@ -1344,14 +1389,10 @@
         startScreenEl.style.display = 'none';
 
         if (type === 'blue') {
-          playerEl.style.backgroundColor = 'transparent';
-          playerEl.style.backgroundImage = `url("${SPRITES.blue}")`;
-          playerEl.style.filter = 'drop-shadow(0 0 14px rgba(124, 219, 255, 0.65))';
+          updateLifeformVisual();
           hintEl.textContent = 'BLUE BACTERIA selected. Hold SPACE to eat purple flowers. Move with WASD / arrows. Double-tap a direction to run.';
         } else {
-          playerEl.style.backgroundColor = 'transparent';
-          playerEl.style.backgroundImage = `url("${SPRITES.red}")`;
-          playerEl.style.filter = 'drop-shadow(0 0 14px rgba(255, 124, 171, 0.72))';
+          updateLifeformVisual();
           hintEl.textContent = 'RED VIRUS selected. Hold SPACE near other players to consume them. Move with WASD / arrows. Double-tap a direction to run.';
         }
         sendLocalState(true);
@@ -1395,6 +1436,11 @@
 
       window.addEventListener('keydown', (e) => {
         const key = e.key.toLowerCase();
+        if (key === 'r' && state.dead) {
+          e.preventDefault();
+          respawnPlayer();
+          return;
+        }
         if (key === ' ') {
           e.preventDefault();
           inputState.consume = true;
@@ -1481,7 +1527,11 @@
           }
         }
 
-        state.moving = state.movementEnabled && (dx !== 0 || dy !== 0);
+        if (!state.dead && state.energy <= 0) {
+          killPlayer();
+        }
+
+        state.moving = state.movementEnabled && !state.dead && (dx !== 0 || dy !== 0);
         let moveEnergyDrain = 0;
         let actualMoveFactor = 1;
         if (state.moving) {
@@ -1553,7 +1603,8 @@
         const foodLabel = `FLOWERS ${flora.blooms.length}`;
         const ateLabel = state.lifeType === 'blue' ? ` | EATEN ${flora.eatenByBlue}` : '';
         const redAteLabel = state.lifeType === 'red' ? ` | FED ${fauna.eatenByRed}` : '';
-        positionEl.textContent = `lat ${formatHemisphere(lat, 'N', 'S')}, lng ${formatHemisphere(lng, 'E', 'W')} | ${lifeLabel} | ${energyLabel} | ${foodLabel}${ateLabel}${redAteLabel}`;
+        const deadLabel = state.dead ? ' | DEAD' : '';
+        positionEl.textContent = `lat ${formatHemisphere(lat, 'N', 'S')}, lng ${formatHemisphere(lng, 'E', 'W')} | ${lifeLabel}${deadLabel} | ${energyLabel} | ${foodLabel}${ateLabel}${redAteLabel}`;
 
         requestAnimationFrame(frame);
       }
