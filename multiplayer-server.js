@@ -6,6 +6,7 @@ const PORT = Number(process.env.PORT || 8080);
 const WORLD_W = 48;
 const WORLD_H = 48;
 const LIFE_TYPES = new Set(['blue', 'red']);
+const EAT_RADIUS = 0.44;
 
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
@@ -21,6 +22,26 @@ function wrap(v, max) {
 
 function makeId() {
   return crypto.randomBytes(3).toString('hex');
+}
+
+function torusSignedDelta(a, b, max) {
+  let d = a - b;
+  if (d > max * 0.5) d -= max;
+  if (d < -max * 0.5) d += max;
+  return d;
+}
+
+function distance2(a, b) {
+  const dx = torusSignedDelta(a.x, b.x, WORLD_W);
+  const dy = torusSignedDelta(a.y, b.y, WORLD_H);
+  return (dx * dx) + (dy * dy);
+}
+
+function randomSpawn() {
+  return {
+    x: Math.random() * WORLD_W,
+    y: 0.52 + Math.random() * (WORLD_H - 1.04),
+  };
 }
 
 const server = http.createServer((req, res) => {
@@ -91,6 +112,49 @@ wss.on('connection', (ws) => {
         type: 'snapshot',
         players: Array.from(players.values()).map(serializePlayer),
       }));
+      return;
+    }
+
+    if (data.type === 'eat') {
+      if (player.lifeType !== 'red') return;
+      const targetId = String(data.targetId || '');
+      if (!targetId) return;
+
+      let targetWs = null;
+      let target = null;
+      for (const [candidateWs, candidate] of players.entries()) {
+        if (candidate.id === targetId) {
+          targetWs = candidateWs;
+          target = candidate;
+          break;
+        }
+      }
+      if (!targetWs || !target || targetWs === ws) return;
+
+      if (distance2(player, target) > (EAT_RADIUS * EAT_RADIUS)) return;
+
+      const preyLifeType = target.lifeType;
+      const spawn = randomSpawn();
+      target.x = spawn.x;
+      target.y = spawn.y;
+      target.moveAngleDeg = 0;
+      target.flipX = false;
+      target.moving = false;
+
+      broadcast({
+        type: 'respawn',
+        id: target.id,
+        x: target.x,
+        y: target.y,
+      });
+
+      if (ws.readyState === 1) {
+        ws.send(JSON.stringify({
+          type: 'fed',
+          id: player.id,
+          preyLifeType,
+        }));
+      }
       return;
     }
 

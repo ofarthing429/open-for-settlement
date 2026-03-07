@@ -57,6 +57,13 @@
         z-index: 1;
       }
 
+      #fauna-layer {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 2;
+      }
+
       .flora {
         position: fixed;
         width: 34px;
@@ -72,6 +79,17 @@
           radial-gradient(circle at 16% 68%, rgba(177, 98, 244, 0.88) 0 28%, transparent 29%),
           radial-gradient(circle at 16% 36%, rgba(193, 116, 250, 0.9) 0 28%, transparent 29%);
         filter: drop-shadow(0 0 10px rgba(196, 114, 255, 0.5));
+        will-change: transform, opacity;
+      }
+
+      .fauna {
+        position: fixed;
+        width: 30px;
+        height: 30px;
+        transform: translate(-50%, -50%);
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
         will-change: transform, opacity;
       }
 
@@ -286,6 +304,7 @@
   <body>
     <canvas id="water"></canvas>
     <div id="flora-layer"></div>
+    <div id="fauna-layer"></div>
     <div id="minimap-frame">
       <div id="globe-flora-layer"></div>
     </div>
@@ -313,6 +332,7 @@
       const hintEl = document.querySelector('.hint');
       const playerEl = document.getElementById('player');
       const floraLayerEl = document.getElementById('flora-layer');
+      const faunaLayerEl = document.getElementById('fauna-layer');
       const remoteLayerEl = document.getElementById('remote-layer');
       const netStatusEl = document.getElementById('net-status');
       const startScreenEl = document.getElementById('start-screen');
@@ -581,6 +601,7 @@
         flipX: false,
         moving: false,
         crawlPhase: 0,
+        energy: 72,
       };
       const net = {
         wsUrl: '',
@@ -591,6 +612,7 @@
         id: '',
         peers: new Map(),
         lastSentMs: 0,
+        lastEatMs: 0,
       };
 
       const keys = new Set();
@@ -614,23 +636,51 @@
         marginCss: 14
       };
       const FLORA = {
-        minPopulation: 220,
-        maxPopulation: 780,
+        minPopulation: 70,
+        maxPopulation: 180,
         matureAge: 5.5,
-        spreadTickSec: 0.24,
-        spreadChancePerTick: 0.3,
+        spreadTickSec: 0.45,
+        spreadChancePerTick: 0.12,
         spreadDistMin: 0.35,
         spreadDistMax: 1.15,
         consumeRadius: 0.3,
         polarMargin: POLAR_CAP_MARGIN + 0.16,
-        guaranteedNearPlayer: 14,
-        nearPlayerRadius: 2.3,
+        guaranteedNearPlayer: 6,
+        nearPlayerRadius: 1.7,
+      };
+      const FAUNA = {
+        minPopulation: 0,
+        maxPopulation: 0,
+        speedMin: 0.08,
+        speedMax: 0.32,
+        turnEveryMin: 0.5,
+        turnEveryMax: 2.0,
+        consumeRadius: 0.38,
+        guaranteedNearPlayer: 8,
+        nearPlayerRadius: 2.8,
+      };
+      const PVP = {
+        consumeRadius: 0.44,
+        consumeCooldownMs: 260,
+      };
+      const ENERGY = {
+        max: 100,
+        walkDrainPerSec: 3.0,
+        runDrainPerSec: 6.0,
+        bluePerFlower: 7,
+        redPerBacteria: 14,
+        redPerVirus: 9,
       };
       const flora = {
         nextId: 1,
         blooms: [],
         eatenByBlue: 0,
         globeMarkers: [],
+      };
+      const fauna = {
+        nextId: 1,
+        critters: [],
+        eatenByRed: 0,
       };
 
       function wrap(v, max) {
@@ -815,6 +865,7 @@
             const dy = torusSignedDelta(player.y, bloom.y, WORLD.h);
             if ((dx * dx) + (dy * dy) <= (FLORA.consumeRadius * FLORA.consumeRadius)) {
               flora.eatenByBlue += 1;
+              addEnergy(ENERGY.bluePerFlower);
               removeBloomAt(i);
             }
           }
@@ -839,6 +890,144 @@
           const alpha = 0.34 + (0.66 * growth);
           bloom.el.style.opacity = alpha.toFixed(3);
           bloom.el.style.transform = `translate(${sx.toFixed(2)}px, ${sy.toFixed(2)}px) translate(-50%, -50%) scale(${scale.toFixed(3)})`;
+        }
+      }
+
+      function addEnergy(amount) {
+        state.energy = clamp(state.energy + amount, 0, ENERGY.max);
+      }
+
+      function makeFaunaDirection() {
+        const a = Math.random() * Math.PI * 2;
+        const speed = randomBetween(FAUNA.speedMin, FAUNA.speedMax);
+        return {
+          vx: Math.cos(a) * speed,
+          vy: Math.sin(a) * speed,
+          angleDeg: (a * 180 / Math.PI) + 90,
+        };
+      }
+
+      function createCritter(type, x, y) {
+        if (fauna.critters.length >= FAUNA.maxPopulation) return null;
+        const el = document.createElement('div');
+        el.className = 'fauna';
+        const lifeType = type === 'red' ? 'red' : 'blue';
+        el.style.backgroundImage = `url("${lifeType === 'red' ? SPRITES.red : SPRITES.blue}")`;
+        el.style.filter = lifeType === 'red'
+          ? 'drop-shadow(0 0 8px rgba(255, 124, 171, 0.56))'
+          : 'drop-shadow(0 0 8px rgba(124, 219, 255, 0.52))';
+        faunaLayerEl.appendChild(el);
+        const dir = makeFaunaDirection();
+        const critter = {
+          id: fauna.nextId++,
+          lifeType,
+          x: wrap(x, WORLD.w),
+          y: clamp(y, POLAR_MIN_Y, POLAR_MAX_Y),
+          vx: dir.vx,
+          vy: dir.vy,
+          angleDeg: dir.angleDeg,
+          flipX: Math.random() < 0.5,
+          turnClock: randomBetween(FAUNA.turnEveryMin, FAUNA.turnEveryMax),
+          phase: Math.random() * Math.PI * 2,
+          el,
+        };
+        fauna.critters.push(critter);
+        return critter;
+      }
+
+      function removeCritterAt(index) {
+        const critter = fauna.critters[index];
+        if (!critter) return;
+        if (critter.el && critter.el.parentNode) critter.el.parentNode.removeChild(critter.el);
+        fauna.critters.splice(index, 1);
+      }
+
+      function seedFaunaIfNeeded() {
+        let needed = FAUNA.minPopulation - fauna.critters.length;
+        while (needed > 0) {
+          const batch = Math.min(needed, 6);
+          for (let i = 0; i < batch; i++) {
+            createCritter(Math.random() < 0.64 ? 'blue' : 'red', randomBetween(0, WORLD.w), randomBetween(POLAR_MIN_Y, POLAR_MAX_Y));
+          }
+          needed -= batch;
+        }
+      }
+
+      function countNearbyCritters(cx, cy, radius) {
+        const r2 = radius * radius;
+        let count = 0;
+        for (let i = 0; i < fauna.critters.length; i++) {
+          const c = fauna.critters[i];
+          const dx = torusSignedDelta(cx, c.x, WORLD.w);
+          const dy = torusSignedDelta(cy, c.y, WORLD.h);
+          if ((dx * dx) + (dy * dy) <= r2) count += 1;
+        }
+        return count;
+      }
+
+      function seedFaunaNearPlayerIfNeeded() {
+        const needed = FAUNA.guaranteedNearPlayer - countNearbyCritters(player.x, player.y, FAUNA.nearPlayerRadius);
+        if (needed <= 0) return;
+        for (let i = 0; i < needed; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const d = Math.random() * FAUNA.nearPlayerRadius;
+          const nx = wrap(player.x + Math.cos(a) * d, WORLD.w);
+          const ny = clamp(player.y + Math.sin(a) * d, POLAR_MIN_Y, POLAR_MAX_Y);
+          createCritter(Math.random() < 0.7 ? 'blue' : 'red', nx, ny);
+        }
+      }
+
+      function updateFauna(dt) {
+        seedFaunaIfNeeded();
+        seedFaunaNearPlayerIfNeeded();
+
+        for (let i = 0; i < fauna.critters.length; i++) {
+          const c = fauna.critters[i];
+          c.turnClock -= dt;
+          if (c.turnClock <= 0) {
+            const dir = makeFaunaDirection();
+            c.vx = dir.vx;
+            c.vy = dir.vy;
+            c.turnClock = randomBetween(FAUNA.turnEveryMin, FAUNA.turnEveryMax);
+          }
+          c.x = wrap(c.x + (c.vx * dt), WORLD.w);
+          c.y = clamp(c.y + (c.vy * dt), POLAR_MIN_Y, POLAR_MAX_Y);
+          c.angleDeg = Math.atan2(c.vy, c.vx) * (180 / Math.PI);
+          c.flipX = c.vx < 0;
+          c.phase += dt * (4.4 + Math.hypot(c.vx, c.vy) * 10);
+        }
+
+        if (state.lifeType === 'red' && state.movementEnabled && inputState.consume) {
+          for (let i = fauna.critters.length - 1; i >= 0; i--) {
+            const c = fauna.critters[i];
+            const dx = torusSignedDelta(player.x, c.x, WORLD.w);
+            const dy = torusSignedDelta(player.y, c.y, WORLD.h);
+            if ((dx * dx) + (dy * dy) <= (FAUNA.consumeRadius * FAUNA.consumeRadius)) {
+              fauna.eatenByRed += 1;
+              addEnergy(c.lifeType === 'blue' ? ENERGY.redPerBacteria : ENERGY.redPerVirus);
+              removeCritterAt(i);
+            }
+          }
+        }
+      }
+
+      function renderFauna() {
+        const pxPerWorld = window.innerHeight / VIEW_SCALE;
+        for (let i = 0; i < fauna.critters.length; i++) {
+          const c = fauna.critters[i];
+          const dx = torusSignedDelta(c.x, player.x, WORLD.w);
+          const dy = torusSignedDelta(c.y, player.y, WORLD.h);
+          const sx = (window.innerWidth * 0.5) + (dx * pxPerWorld);
+          const sy = (window.innerHeight * 0.5) - (dy * pxPerWorld);
+          const out = sx < -50 || sx > window.innerWidth + 50 || sy < -50 || sy > window.innerHeight + 50;
+          c.el.style.display = out ? 'none' : 'block';
+          if (out) continue;
+          const wiggle = Math.sin(c.phase) * (c.lifeType === 'red' ? 6.2 : 2.4);
+          const bob = Math.sin(c.phase * (c.lifeType === 'red' ? 1.8 : 1.1)) * (c.lifeType === 'red' ? 1.9 : 1.2);
+          const stretch = 1 + (Math.sin(c.phase * 1.8) * 0.06);
+          const squash = 1 - (Math.sin(c.phase * 1.8) * 0.05);
+          const scaleX = c.flipX ? -stretch : stretch;
+          c.el.style.transform = `translate(${sx.toFixed(2)}px, ${(sy + bob).toFixed(2)}px) translate(-50%, -50%) rotate(${(c.angleDeg + wiggle).toFixed(2)}deg) scale(${scaleX.toFixed(3)}, ${squash.toFixed(3)})`;
         }
       }
 
@@ -1017,6 +1206,28 @@
         }));
       }
 
+      function attemptConsumePlayer(nowMs) {
+        if (state.lifeType !== 'red' || !inputState.consume || !net.connected) return;
+        if (nowMs - net.lastEatMs < PVP.consumeCooldownMs) return;
+        if (!net.socket || net.socket.readyState !== WebSocket.OPEN) return;
+
+        let targetId = '';
+        let bestDist2 = Infinity;
+        for (const peer of net.peers.values()) {
+          const dx = torusSignedDelta(player.x, peer.x, WORLD.w);
+          const dy = torusSignedDelta(player.y, peer.y, WORLD.h);
+          const d2 = (dx * dx) + (dy * dy);
+          if (d2 <= (PVP.consumeRadius * PVP.consumeRadius) && d2 < bestDist2) {
+            bestDist2 = d2;
+            targetId = peer.id;
+          }
+        }
+
+        if (!targetId) return;
+        net.lastEatMs = nowMs;
+        net.socket.send(JSON.stringify({ type: 'eat', targetId }));
+      }
+
       function scheduleReconnect() {
         if (!net.wsUrl || net.connected || net.connecting) return;
         const delay = Math.min(9000, 1200 + (net.reconnectAttempt * 700));
@@ -1080,6 +1291,34 @@
 
           if (data.type === 'remove') {
             removePeer(String(data.id || ''));
+            return;
+          }
+
+          if (data.type === 'respawn') {
+            const id = String(data.id || '');
+            const x = Number(data.x);
+            const y = Number(data.y);
+            if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+            if (id && id === net.id) {
+              player.x = wrap(x, WORLD.w);
+              player.y = clamp(y, POLAR_MIN_Y, POLAR_MAX_Y);
+              addEnergy(-28);
+              return;
+            }
+            const peer = net.peers.get(id);
+            if (peer) {
+              peer.x = wrap(x, WORLD.w);
+              peer.y = clamp(y, POLAR_MIN_Y, POLAR_MAX_Y);
+              peer.lastSeen = performance.now();
+            }
+            return;
+          }
+
+          if (data.type === 'fed') {
+            if (String(data.id || '') !== net.id) return;
+            fauna.eatenByRed += 1;
+            const preyLifeType = data.preyLifeType === 'blue' ? 'blue' : 'red';
+            addEnergy(preyLifeType === 'blue' ? ENERGY.redPerBacteria : ENERGY.redPerVirus);
           }
         });
 
@@ -1099,6 +1338,7 @@
       function chooseLife(type) {
         state.lifeType = type;
         state.movementEnabled = true;
+        state.energy = 72;
         chooseBlueEl.classList.toggle('selected', type === 'blue');
         chooseRedEl.classList.toggle('selected', type === 'red');
         startScreenEl.style.display = 'none';
@@ -1112,7 +1352,7 @@
           playerEl.style.backgroundColor = 'transparent';
           playerEl.style.backgroundImage = `url("${SPRITES.red}")`;
           playerEl.style.filter = 'drop-shadow(0 0 14px rgba(255, 124, 171, 0.72))';
-          hintEl.textContent = 'RED VIRUS selected. Move with WASD / arrows. Double-tap a direction to run.';
+          hintEl.textContent = 'RED VIRUS selected. Hold SPACE near other players to consume them. Move with WASD / arrows. Double-tap a direction to run.';
         }
         sendLocalState(true);
       }
@@ -1242,6 +1482,8 @@
         }
 
         state.moving = state.movementEnabled && (dx !== 0 || dy !== 0);
+        let moveEnergyDrain = 0;
+        let actualMoveFactor = 1;
         if (state.moving) {
           const len = Math.hypot(dx, dy);
           dx /= len;
@@ -1256,22 +1498,30 @@
           }
 
           let speed = player.speed;
-          if (runState.sprinting && runState.sprintDir && isDirHeld(runState.sprintDir)) {
+          const canRun = state.energy > 8;
+          if (runState.sprinting && runState.sprintDir && isDirHeld(runState.sprintDir) && canRun) {
             speed *= RUN_MULTIPLIER;
+            actualMoveFactor = RUN_MULTIPLIER;
           } else if (runState.sprinting && runState.sprintDir && !isDirHeld(runState.sprintDir)) {
             runState.sprinting = false;
             runState.sprintDir = '';
+          } else if (!canRun && runState.sprinting) {
+            runState.sprinting = false;
+            runState.sprintDir = '';
           }
+          if (state.energy <= 0.05) speed *= 0.35;
 
           player.x = wrap(player.x + dx * speed * dt, WORLD.w);
           player.y = clamp(player.y + dy * speed * dt, POLAR_MIN_Y, POLAR_MAX_Y);
+          moveEnergyDrain = (actualMoveFactor > 1 ? ENERGY.runDrainPerSec : ENERGY.walkDrainPerSec) * dt;
         }
+        if (moveEnergyDrain > 0) addEnergy(-moveEnergyDrain);
 
-        const sprintingNow = runState.sprinting && runState.sprintDir && isDirHeld(runState.sprintDir);
-        updatePlayerVisuals(dt, sprintingNow ? RUN_MULTIPLIER : 1);
+        updatePlayerVisuals(dt, actualMoveFactor);
         updateFlora(dt);
         renderFlora(t);
         renderFloraOnGlobe();
+        attemptConsumePlayer(now);
         renderPeers(dt);
         sendLocalState(false);
 
@@ -1299,9 +1549,11 @@
         const lat = toLatitude(player.y, WORLD.h);
         const lng = toLongitude(player.x, WORLD.w);
         const lifeLabel = state.lifeType === 'blue' ? 'BLUE BACTERIA' : state.lifeType === 'red' ? 'RED VIRUS' : 'UNSELECTED';
+        const energyLabel = `ENERGY ${Math.round(state.energy)}/${ENERGY.max}`;
         const foodLabel = `FLOWERS ${flora.blooms.length}`;
         const ateLabel = state.lifeType === 'blue' ? ` | EATEN ${flora.eatenByBlue}` : '';
-        positionEl.textContent = `lat ${formatHemisphere(lat, 'N', 'S')}, lng ${formatHemisphere(lng, 'E', 'W')} | ${lifeLabel} | ${foodLabel}${ateLabel}`;
+        const redAteLabel = state.lifeType === 'red' ? ` | FED ${fauna.eatenByRed}` : '';
+        positionEl.textContent = `lat ${formatHemisphere(lat, 'N', 'S')}, lng ${formatHemisphere(lng, 'E', 'W')} | ${lifeLabel} | ${energyLabel} | ${foodLabel}${ateLabel}${redAteLabel}`;
 
         requestAnimationFrame(frame);
       }
