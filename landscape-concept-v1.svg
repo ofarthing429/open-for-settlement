@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" role="img" aria-label="Alien landscape with violet water and black sand">
+  <defs>
+    <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0f1830" />
+      <stop offset="45%" stop-color="#231633" />
+      <stop offset="100%" stop-color="#130f18" />
+    </linearGradient>
+    <linearGradient id="sandGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a171e" />
+      <stop offset="60%" stop-color="#0d0d12" />
+      <stop offset="100%" stop-color="#06070b" />
+    </linearGradient>
+    <linearGradient id="waterGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#8740c7" />
+      <stop offset="50%" stop-color="#a662ff" />
+      <stop offset="100%" stop-color="#6d32ad" />
+    </linearGradient>
+    <radialGradient id="moonGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#dab0ff" stop-opacity="1" />
+      <stop offset="100%" stop-color="#dab0ff" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#skyGrad)" />
+
+  <circle cx="1525" cy="210" r="62" fill="#c79fff" />
+  <circle cx="1525" cy="210" r="168" fill="url(#moonGlow)" />
+
+  <path d="M0 530 L210 480 L420 515 L620 455 L880 520 L1060 465 L1290 540 L1510 475 L1730 545 L1920 510 L1920 1080 L0 1080 Z" fill="#1c1924" />
+  <path d="M0 625 L170 590 L340 640 L500 608 L710 670 L890 618 L1070 676 L1250 640 L1480 698 L1700 655 L1920 710 L1920 1080 L0 1080 Z" fill="url(#sandGrad)" />
+
+  <path d="M85 732 C245 690 392 744 542 718 C694 692 778 756 934 724 C1088 692 1224 742 1384 714 C1552 688 1702 744 1866 718 L1866 812 C1708 838 1560 790 1388 820 C1216 848 1080 796 928 826 C772 856 658 808 518 836 C374 864 230 816 85 846 Z" fill="url(#waterGrad)" opacity="0.92" />
+  <path d="M95 760 C248 730 398 772 548 748 C694 724 780 780 932 750 C1084 720 1220 770 1380 744 C1542 718 1690 772 1852 744" fill="none" stroke="#d493ff" stroke-opacity="0.45" stroke-width="5" />
+  <path d="M120 786 C258 760 396 792 530 772 C678 744 776 800 932 772 C1088 744 1224 800 1386 772 C1540 746 1680 796 1822 772" fill="none" stroke="#ffd8ff" stroke-opacity="0.24" stroke-width="3" />
+
+  <g opacity="0.62">
+    <ellipse cx="280" cy="910" rx="220" ry="56" fill="#121218" />
+    <ellipse cx="760" cy="900" rx="265" ry="60" fill="#111117" />
+    <ellipse cx="1230" cy="922" rx="238" ry="56" fill="#13131a" />
+    <ellipse cx="1690" cy="908" rx="220" ry="58" fill="#0f1017" />
+  </g>
+
+  <g opacity="0.4">
+    <path d="M80 870 C256 826 408 878 620 850 C838 822 982 878 1212 848 C1434 818 1642 880 1872 848" fill="none" stroke="#2b2c38" stroke-width="10" />
+    <path d="M48 932 C228 888 390 940 614 914 C862 886 1010 944 1242 912 C1472 884 1682 940 1892 914" fill="none" stroke="#1f202a" stroke-width="12" />
+  </g>
+
+  <g opacity="0.3">
+    <rect x="220" y="680" width="2" height="2" fill="#ffffff" />
+    <rect x="360" y="700" width="2" height="2" fill="#ffffff" />
+    <rect x="740" y="690" width="2" height="2" fill="#ffffff" />
+    <rect x="980" y="705" width="2" height="2" fill="#ffffff" />
+    <rect x="1360" y="694" width="2" height="2" fill="#ffffff" />
+    <rect x="1660" y="705" width="2" height="2" fill="#ffffff" />
+  </g>
+</svg>
