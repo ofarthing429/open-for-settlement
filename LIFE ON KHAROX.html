@@ -637,7 +637,7 @@
         marginCss: 14
       };
       const FLORA = {
-        minPopulation: 70,
+        initialPopulation: 100,
         maxPopulation: 250,
         matureAge: 5.5,
         spreadTickSec: 0.45,
@@ -646,7 +646,7 @@
         spreadDistMax: 1.15,
         consumeRadius: 0.3,
         polarMargin: POLAR_CAP_MARGIN + 0.16,
-        guaranteedNearPlayer: 6,
+        guaranteedNearPlayer: 0,
         nearPlayerRadius: 1.7,
       };
       const FAUNA = {
@@ -677,6 +677,7 @@
         blooms: [],
         eatenByBlue: 0,
         globeMarkers: [],
+        seededInitialPopulation: false,
       };
       const fauna = {
         nextId: 1,
@@ -787,7 +788,8 @@
       }
 
       function seedFloraIfNeeded() {
-        let needed = FLORA.minPopulation - flora.blooms.length;
+        if (flora.seededInitialPopulation) return;
+        let needed = FLORA.initialPopulation - flora.blooms.length;
         while (needed > 0) {
           const batch = Math.min(needed, 8);
           for (let i = 0; i < batch; i++) {
@@ -795,6 +797,7 @@
           }
           needed -= batch;
         }
+        flora.seededInitialPopulation = true;
       }
 
       function countNearbyBlooms(cx, cy, radius) {
