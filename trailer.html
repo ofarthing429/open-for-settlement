@@ -97,16 +97,6 @@
       g.closePath();
       g.fill();
 
-      // distant coral
-      for (let i = 0; i < 8; i += 1) {
-        const x = 40 + (i * 55);
-        const h = 20 + ((i % 3) * 8);
-        const rootY = 170 + Math.floor(Math.sin((x * 0.045) + (t * 0.35)) * 2);
-        g.fillStyle = '#36a35a';
-        g.fillRect(x, rootY - h, 2, h);
-        g.fillStyle = '#6ef58f';
-        g.fillRect(x + 1, rootY - h - 5, 2, 5);
-      }
     }
 
     function drawCrawler(x, y, stopped) {
