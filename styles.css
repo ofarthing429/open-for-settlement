@@ -147,6 +147,11 @@ button {
   font: inherit;
 }
 
+.trailerLink {
+  display: inline-block;
+  margin-left: 8px;
+}
+
 input {
   display: block;
   margin-top: 8px;
