@@ -138,6 +138,7 @@ const RECORD_RUNS_STORAGE_KEY = 'black-sand-colony-run-record-runs';
 const RECORD_WINS_STORAGE_KEY = 'black-sand-colony-run-record-wins';
 const RECORD_BEST_POINTS_STORAGE_KEY = 'black-sand-colony-run-record-best-points';
 const RECORD_BEST_TURNS_STORAGE_KEY = 'black-sand-colony-run-record-best-turns';
+const WIN_REWARD_POINTS = 50;
 const TABLET_STORAGE_KEY = 'black-sand-colony-run-tablets';
 const COLONY_STORAGE_KEY = 'black-sand-colony-run-colony';
 const COLONIZE_DELAY_STORAGE_KEY = 'black-sand-colony-run-colonize-delay';
@@ -4018,7 +4019,7 @@ function resolveRoundState(checkWin, options = {}) {
   if (checkWin && !state.gameOver && !deferWin && state.turn >= state.turnsToWin) {
     addLog('Extraction signal locked. You survived the crossing.', 'good');
     triggerEventAnimation('confetti', 140);
-    endGame('Mission success. You won.', 'win');
+    endGame(`Mission success. You won. +${WIN_REWARD_POINTS} points awarded.`, 'win');
   }
 }
 
@@ -4210,6 +4211,8 @@ function finalizeRun(won) {
   state.records.runs += 1;
   if (won) {
     state.records.wins += 1;
+    state.points += WIN_REWARD_POINTS;
+    storePoints();
   }
   state.records.bestPoints = Math.max(state.records.bestPoints, state.points);
   state.records.bestTurns = Math.max(state.records.bestTurns, state.turn);
