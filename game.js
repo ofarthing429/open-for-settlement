@@ -308,6 +308,7 @@ const state = {
   turn: 0,
   food: 0,
   points: 0,
+  runStartPoints: 0,
   hp: 100,
   maxHp: 100,
   turnsToWin: 0,
@@ -450,6 +451,7 @@ function startGame() {
   state.turn = 0;
   state.food = safeFood;
   state.points = loadStoredPoints();
+  state.runStartPoints = state.points;
   state.maxHp = loadStoredMaxHp();
   state.investorOwned = loadStoredInvestor();
   state.records = loadStoredRecords();
@@ -4212,6 +4214,9 @@ function finalizeRun(won) {
   if (won) {
     state.records.wins += 1;
     state.points += WIN_REWARD_POINTS;
+    storePoints();
+  } else {
+    state.points = state.runStartPoints;
     storePoints();
   }
   state.records.bestPoints = Math.max(state.records.bestPoints, state.points);
