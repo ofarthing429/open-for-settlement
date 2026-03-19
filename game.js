@@ -145,7 +145,7 @@ const RECORD_WINS_STORAGE_KEY = 'black-sand-colony-run-record-wins';
 const RECORD_BEST_POINTS_STORAGE_KEY = 'black-sand-colony-run-record-best-points';
 const RECORD_BEST_TURNS_STORAGE_KEY = 'black-sand-colony-run-record-best-turns';
 const WIN_REWARD_POINTS = 50;
-const FLY_JACKPOT_POINTS = 500;
+const FLY_JACKPOT_POINTS = 50000;
 const WORM_COMPLIMENT_POINTS = 1000;
 const LAWYER_INTERVENTION_POINTS = 50;
 const NATIVE_SCAM_RATE_MULT = 1;
@@ -236,7 +236,7 @@ function ensureAudioContext() {
   }
   const ctx = new AudioCtx();
   const master = ctx.createGain();
-  master.gain.value = 0.16;
+  master.gain.value = 0.34;
   master.connect(ctx.destination);
   audioState.ctx = ctx;
   audioState.master = master;
@@ -309,7 +309,7 @@ function playNibbloraxMunchSound() {
 
     const biteGain = ctx.createGain();
     biteGain.gain.setValueAtTime(0.0001, t);
-    biteGain.gain.linearRampToValueAtTime(0.1, t + 0.01);
+    biteGain.gain.linearRampToValueAtTime(0.17, t + 0.01);
     biteGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
 
     bite.connect(biteGain);
@@ -535,15 +535,15 @@ function playMetalClangSound() {
   ring.frequency.exponentialRampToValueAtTime(610, now + 0.22);
   const gain = ctx.createGain();
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.linearRampToValueAtTime(0.11, now + 0.01);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
+  gain.gain.linearRampToValueAtTime(0.18, now + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.34);
   hit.connect(gain);
   ring.connect(gain);
   gain.connect(audioState.master);
   hit.start(now);
   ring.start(now + 0.01);
   hit.stop(now + 0.2);
-  ring.stop(now + 0.28);
+  ring.stop(now + 0.34);
 }
 
 function playDiggingSound() {
@@ -552,7 +552,7 @@ function playDiggingSound() {
     return;
   }
   const now = ctx.currentTime;
-  const noiseBuffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.45), ctx.sampleRate);
+  const noiseBuffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.62), ctx.sampleRate);
   const data = noiseBuffer.getChannelData(0);
   for (let i = 0; i < data.length; i += 1) {
     data[i] = (Math.random() * 2 - 1) * 0.8;
@@ -561,18 +561,18 @@ function playDiggingSound() {
   noise.buffer = noiseBuffer;
   const filter = ctx.createBiquadFilter();
   filter.type = 'bandpass';
-  filter.frequency.setValueAtTime(360, now);
-  filter.frequency.exponentialRampToValueAtTime(980, now + 0.3);
-  filter.Q.value = 1.1;
+  filter.frequency.setValueAtTime(280, now);
+  filter.frequency.exponentialRampToValueAtTime(1320, now + 0.48);
+  filter.Q.value = 0.95;
   const gain = ctx.createGain();
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.linearRampToValueAtTime(0.09, now + 0.03);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+  gain.gain.linearRampToValueAtTime(0.22, now + 0.025);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.58);
   noise.connect(filter);
   filter.connect(gain);
   gain.connect(audioState.master);
   noise.start(now);
-  noise.stop(now + 0.45);
+  noise.stop(now + 0.62);
 }
 
 function playCoralScrapeSound() {
@@ -661,6 +661,192 @@ function playSpraySound() {
   gain.connect(audioState.master);
   noise.start(now);
   noise.stop(now + 0.26);
+}
+
+function playUiClickSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+  const click = ctx.createOscillator();
+  click.type = 'square';
+  click.frequency.setValueAtTime(820, now);
+  click.frequency.exponentialRampToValueAtTime(460, now + 0.045);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.03, now + 0.005);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+  click.connect(gain);
+  gain.connect(audioState.master);
+  click.start(now);
+  click.stop(now + 0.055);
+}
+
+function playMudSplorgSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+  const noiseBuffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.42), ctx.sampleRate);
+  const data = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < data.length; i += 1) {
+    data[i] = (Math.random() * 2 - 1) * 0.75;
+  }
+  const noise = ctx.createBufferSource();
+  noise.buffer = noiseBuffer;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(760, now);
+  filter.frequency.exponentialRampToValueAtTime(180, now + 0.34);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.2, now + 0.014);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.38);
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioState.master);
+  noise.start(now);
+  noise.stop(now + 0.42);
+}
+
+function playSonarBeepSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+  for (let i = 0; i < 2; i += 1) {
+    const t = now + (i * 0.18);
+    const beep = ctx.createOscillator();
+    beep.type = 'sine';
+    beep.frequency.setValueAtTime(980, t);
+    beep.frequency.exponentialRampToValueAtTime(1120, t + 0.08);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.linearRampToValueAtTime(0.12, t + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+    beep.connect(gain);
+    gain.connect(audioState.master);
+    beep.start(t);
+    beep.stop(t + 0.1);
+  }
+}
+
+function playPickaxeClinkSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+  const clink = ctx.createOscillator();
+  clink.type = 'triangle';
+  clink.frequency.setValueAtTime(1200, now);
+  clink.frequency.exponentialRampToValueAtTime(640, now + 0.16);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.065, now + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+  clink.connect(gain);
+  gain.connect(audioState.master);
+  clink.start(now);
+  clink.stop(now + 0.2);
+}
+
+function playTabletShiftSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+  const noiseBuffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.46), ctx.sampleRate);
+  const data = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < data.length; i += 1) {
+    data[i] = (Math.random() * 2 - 1) * 0.7;
+  }
+  const noise = ctx.createBufferSource();
+  noise.buffer = noiseBuffer;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.setValueAtTime(960, now);
+  filter.frequency.exponentialRampToValueAtTime(320, now + 0.4);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.18, now + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioState.master);
+  noise.start(now);
+  noise.stop(now + 0.46);
+}
+
+function playExplosionBlastSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+
+  const noiseBuffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.7), ctx.sampleRate);
+  const data = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < data.length; i += 1) {
+    data[i] = (Math.random() * 2 - 1) * 0.95;
+  }
+  const noise = ctx.createBufferSource();
+  noise.buffer = noiseBuffer;
+  const blastFilter = ctx.createBiquadFilter();
+  blastFilter.type = 'lowpass';
+  blastFilter.frequency.setValueAtTime(1400, now);
+  blastFilter.frequency.exponentialRampToValueAtTime(180, now + 0.62);
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.setValueAtTime(0.0001, now);
+  noiseGain.gain.linearRampToValueAtTime(0.27, now + 0.02);
+  noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.66);
+
+  noise.connect(blastFilter);
+  blastFilter.connect(noiseGain);
+  noiseGain.connect(audioState.master);
+  noise.start(now);
+  noise.stop(now + 0.7);
+
+  const thump = ctx.createOscillator();
+  thump.type = 'triangle';
+  thump.frequency.setValueAtTime(95, now);
+  thump.frequency.exponentialRampToValueAtTime(42, now + 0.42);
+  const thumpGain = ctx.createGain();
+  thumpGain.gain.setValueAtTime(0.0001, now);
+  thumpGain.gain.linearRampToValueAtTime(0.22, now + 0.015);
+  thumpGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.48);
+  thump.connect(thumpGain);
+  thumpGain.connect(audioState.master);
+  thump.start(now);
+  thump.stop(now + 0.5);
+}
+
+function playWinFanfareSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+  const notes = [523.25, 659.25, 783.99, 1046.5];
+  notes.forEach((freq, index) => {
+    const t = now + (index * 0.11);
+    const tone = ctx.createOscillator();
+    tone.type = 'square';
+    tone.frequency.setValueAtTime(freq, t);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.linearRampToValueAtTime(0.12, t + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    tone.connect(gain);
+    gain.connect(audioState.master);
+    tone.start(t);
+    tone.stop(t + 0.2);
+  });
 }
 
 function buildMainlandMask() {
@@ -810,6 +996,7 @@ const state = {
   currentTabletId: '',
   marketOpen: false,
   islandOpen: false,
+  marketTouchStallId: '',
   pendingPlacement: null,
   cooldowns: {
     bouncer: 0,
@@ -919,6 +1106,13 @@ logNoteInput.addEventListener('keydown', (event) => {
   }
 });
 window.addEventListener('keydown', handleCapitalMarketKeydown);
+document.addEventListener('click', (event) => {
+  const button = event.target instanceof Element ? event.target.closest('button') : null;
+  if (!button || button.disabled) {
+    return;
+  }
+  playUiClickSound();
+});
 
 function startGame() {
   unlockAudioContext();
@@ -1197,6 +1391,7 @@ function applyEvent(event) {
   }
 
   if (event.key === 'sink' && Math.random() < 0.08) {
+    playMudSplorgSound();
     addLog('Native riders skim over the sinking sand and carry you clear.', 'good');
     triggerEventAnimation('nativeRide', 72);
     return { sprayConsumed: false, autoSkipTurns: 1, autoSkipLabel: 'Native riders carry you over the sink. No food spent.' };
@@ -1213,6 +1408,7 @@ function applyEvent(event) {
   if (event.key === 'coral' && state.pickaxeArmed) {
     state.pickaxeArmed = false;
     state.hp = Math.min(state.maxHp, state.hp + 20);
+    playPickaxeClinkSound();
     playCoralScrapeSound();
     addLog('Special pickaxe turns the glowcore coral into +20 HP.', 'good');
     triggerEventAnimation('pickaxe', 72);
@@ -1336,6 +1532,7 @@ function useSonar() {
 
   state.sonarArmed = true;
   state.cooldowns.sonar = 8;
+  playSonarBeepSound();
   addLog('Sonar disrupter armed until a worm appears.', 'good');
   triggerEventAnimation('sonar', 52);
   syncInventoryUi();
@@ -1397,6 +1594,7 @@ function usePickaxe() {
   }
 
   state.pickaxeArmed = true;
+  playPickaxeClinkSound();
   addLog('Special pickaxe armed until the coral finds you.', 'good');
   triggerEventAnimation('pickaxe', 48);
   syncInventoryUi();
@@ -1559,6 +1757,7 @@ function cycleTabletReader(delta) {
   }
   const next = (index + delta + discovered.length) % discovered.length;
   state.currentTabletId = discovered[next];
+  playTabletShiftSound();
   renderTabletReader();
 }
 
@@ -1570,6 +1769,7 @@ function openTabletReader(id) {
   state.tabletOpen = true;
   state.tabletReaderMode = 'tablet';
   state.currentTabletId = id;
+  playTabletShiftSound();
   renderTabletReader();
   templeVision.classList.add('hidden');
   tabletPanel.classList.remove('hidden');
@@ -1596,6 +1796,7 @@ function openTempleRiddleReader() {
 
   state.tabletOpen = true;
   state.tabletReaderMode = 'riddle';
+  playTabletShiftSound();
   tabletTitle.textContent = 'Temple Wall Riddle';
   tabletBody.textContent = [
     'The one who seeks fortune',
@@ -2859,6 +3060,11 @@ function buildColonyBuilding(kind) {
   if (state.colony.mainland && state.colony.mainland.active) {
     state.colony.mainland.actionsLeft = Math.max(0, state.colony.mainland.actionsLeft - 1);
   }
+  if (kind === 'farms') {
+    playOrchardGrassSound();
+  } else {
+    playMetalClangSound();
+  }
   addColonyLog(`${rules.label} completed. Cost: ${cost.supplies} supplies, ${cost.plutonium} plutonium.`, 'good');
   storeColony();
   syncColonyUi();
@@ -2893,6 +3099,7 @@ function openCapitalMarket() {
 
   state.marketOpen = true;
   state.marketPos = { x: 480, y: 460 };
+  state.marketTouchStallId = '';
   state.marketMessage = 'Walk to a stall and press E to trade points.';
   colonyPanel.classList.add('hidden');
   colonyTerritoryPanel.classList.add('hidden');
@@ -2902,6 +3109,7 @@ function openCapitalMarket() {
 
 function closeCapitalMarket() {
   state.marketOpen = false;
+  state.marketTouchStallId = '';
   capitalMarketPanel.classList.add('hidden');
   showColonyPanel();
 }
@@ -3003,6 +3211,11 @@ function handleMainlandCellClick(x, y) {
   state.colony.mainland.buildingTiles.push({ x, y, kind: pending.kind });
   enrichMainlandSpecialTiles(state.colony.mainland);
   resolveMainlandClaim({ x, y });
+  if (pending.kind === 'farms') {
+    playOrchardGrassSound();
+  } else {
+    playMetalClangSound();
+  }
   addColonyLog(`${BUILDING_DATA[pending.kind].label} completed at ${x},${y}. Cost: ${pending.suppliesCost} supplies, ${pending.plutoniumCost || 0} plutonium.`, 'good');
   addMainlandLog(`Ground Anchor placed at ${x},${y}. Buildings within 2 squares are protected.`, 'good');
   state.pendingPlacement = null;
@@ -3378,9 +3591,11 @@ function advanceCoralCorruptors() {
   }
 
   if (spreadCount > 0) {
+    playCoralScrapeSound();
     addMainlandLog(`Coral Corruptors spread to ${spreadCount} new square${spreadCount === 1 ? '' : 's'}.`, 'bad');
   }
   if (destroyedCount > 0) {
+    playCoralScrapeSound();
     addMainlandLog(`Corruptor growth destroyed ${destroyedCount} building square${destroyedCount === 1 ? '' : 's'}.`, 'bad');
   }
   if (blockedCount > 0) {
@@ -3411,6 +3626,7 @@ function resolveMainlandHivePressure() {
     }
     if (hive.bugsRemaining > 0) {
       state.colony.food = Math.max(0, state.colony.food - hive.bugsRemaining);
+      playNibbloraxMunchSound();
       addMainlandLog(`Hive ${hive.x},${hive.y} still active. Food -${hive.bugsRemaining}.`, 'bad');
     }
   }
@@ -3532,6 +3748,12 @@ function syncMarketUi() {
   }
   marketPointsValue.textContent = String(state.points);
   const nearby = getNearbyMarketStall();
+  if (nearby && state.marketTouchStallId !== nearby.id) {
+    state.marketTouchStallId = nearby.id;
+    playNativeRaspSound();
+  } else if (!nearby) {
+    state.marketTouchStallId = '';
+  }
   const lines = [
     state.marketMessage,
     nearby
@@ -4025,6 +4247,7 @@ function resolveHiveInfestations(cycleIssues) {
     if (hive.bugsRemaining > 0) {
       const foodLoss = hive.bugsRemaining;
       state.colony.food = Math.max(0, state.colony.food - foodLoss);
+      playNibbloraxMunchSound();
       addColonyLog(`Hive ${hive.x},${hive.y} still has ${hive.bugsRemaining} Nibbloraxes. Food -${foodLoss}.`, 'bad');
       if (!cycleIssues.includes('Nibblorax hive')) {
         cycleIssues.push('Nibblorax hive');
@@ -4240,11 +4463,13 @@ function resolveRegionCycleEvents(region, cycleIssues) {
     const tribeTroops = randInt(0, Math.max(0, attackCapDefense * 2));
     if (tribeTroops > 0) {
       if (defense >= tribeTroops) {
+        playNativeRaspSound();
         addColonyLog(`A roaming native tribe tested the perimeter with ${tribeTroops} troops. Barracks held them off.`, 'good');
       } else {
         const shortfall = tribeTroops - defense;
         const loss = Math.max(4, shortfall * 2);
         colony.stability = Math.max(0, colony.stability - loss);
+        playNativeRaspSound();
         addColonyLog(`A roaming native tribe attacked with ${tribeTroops} troops. Defense was short by ${shortfall}. Stability -${loss}.`, 'bad');
         cycleIssues.push('tribal raid');
       }
@@ -4254,6 +4479,7 @@ function resolveRegionCycleEvents(region, cycleIssues) {
   if (region.id === 'forest' && Math.random() < 0.38) {
     const loss = randInt(8, 16);
     colony.supplies = Math.max(0, colony.supplies - loss);
+    playCoralScrapeSound();
     addColonyLog(`Glowcore coral overgrowth chewed through ${loss} supplies.`, 'bad');
     cycleIssues.push('coral overgrowth');
   }
@@ -4262,11 +4488,13 @@ function resolveRegionCycleEvents(region, cycleIssues) {
     const coralAttack = randInt(0, Math.max(0, Math.floor(attackCapDefense * 1.5)));
     if (coralAttack > 0) {
       if (defense >= coralAttack) {
+        playCoralScrapeSound();
         addColonyLog(`A coral surge struck with ${coralAttack} force. Defensive walkers burned it back.`, 'good');
       } else {
         const shortfall = coralAttack - defense;
         const loss = Math.max(8, shortfall * 4);
         colony.food = Math.max(0, colony.food - loss);
+        playCoralScrapeSound();
         addColonyLog(`Glowing coral attacked with ${coralAttack} force. Defense was short by ${shortfall}. Food -${loss}.`, 'bad');
         cycleIssues.push('coral attack');
       }
@@ -4276,11 +4504,13 @@ function resolveRegionCycleEvents(region, cycleIssues) {
   if (region.id === 'flats' && Math.random() < (0.26 + mineThreatBonus)) {
     if (defense > 0 && Math.random() < 0.7) {
       colony.stability = Math.max(0, colony.stability - 4);
+      playWormRoarSound();
       addColonyLog('Barracks robots drove off wormsign before the flats broke open.', 'good');
       cycleIssues.push('worm pressure');
     } else {
       colony.stability = Math.max(0, colony.stability - 20);
       destroyRandomColonyBuilding();
+      playWormRoarSound();
       addColonyLog('A worm surfaced near the mines and smashed part of the colony.', 'bad');
       cycleIssues.push('worm attack');
     }
@@ -4288,6 +4518,7 @@ function resolveRegionCycleEvents(region, cycleIssues) {
   if (region.id === 'flats' && Math.random() < (0.32 + mineThreatBonus)) {
     const eaten = randInt(12, 36);
     colony.supplies = Math.max(0, colony.supplies - eaten);
+    playWormRoarSound();
     addColonyLog(`A worm tunnel opened under storage in the flats. Supplies -${eaten}.`, 'bad');
     cycleIssues.push('worm scavenging');
   }
@@ -4307,12 +4538,14 @@ function resolveRegionCycleEvents(region, cycleIssues) {
     if (Math.random() < 0.4) {
       const foodLoss = randInt(20, 45);
       colony.food = Math.max(0, colony.food - foodLoss);
+      playNibbloraxMunchSound();
       addColonyLog(`Nibbloraxes stripped ${foodLoss} food from the depots.`, 'bad');
       cycleIssues.push('Nibblorax infestation');
     }
     if (Math.random() < (0.35 + mineThreatBonus)) {
       const eaten = randInt(16, 44);
       colony.supplies = Math.max(0, colony.supplies - eaten);
+      playWormRoarSound();
       addColonyLog(`A worm burrow devoured ${eaten} supplies in the Mergi sink fields.`, 'bad');
       cycleIssues.push('worm scavenging');
     }
@@ -4324,6 +4557,7 @@ function resolveRegionCycleEvents(region, cycleIssues) {
         colony.stability = Math.max(0, colony.stability - stabilityLoss);
         const supplyLoss = Math.max(6, mitigated);
         colony.supplies = Math.max(0, colony.supplies - supplyLoss);
+        playSinkSound();
         addColonyLog(`Sinking Dunes rolled through the Mergi lanes. Supplies -${supplyLoss}, stability -${stabilityLoss}.`, 'bad');
         if (Math.random() < 0.4) {
           if (colony.mainland && colony.mainland.active && Array.isArray(colony.mainland.buildingTiles) && colony.mainland.buildingTiles.length > 0) {
@@ -4359,6 +4593,7 @@ function resolveRegionCycleEvents(region, cycleIssues) {
     colony.supplies += gain;
     state.points += 18;
     storePoints();
+    playTradeChingSound();
     addColonyLog(`Native trade caravans delivered ${gain} supplies and 18 points.`, 'good');
   }
 }
@@ -4661,6 +4896,11 @@ function resolveRoundState(checkWin, options = {}) {
 
 function endGame(message, cause = '', options = {}) {
   const { skipFinalLog = false } = options;
+  if (cause === 'win') {
+    playWinFanfareSound();
+  } else if (cause === 'explode') {
+    playExplosionBlastSound();
+  }
   state.gameOver = true;
   state.running = false;
   state.traderOpen = false;
@@ -4991,13 +5231,11 @@ function addPlayerLogNote() {
   const compact = normalized.replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim();
   const lawyerSpellMatched = compact === 'bibiddi bobbidi boo' || compact === 'bibbidi bobbidi boo';
   if (lawyerSpellMatched) {
-    if (!state.lore.mystic) {
-      addLog('Nothing answers. The phrase is still unknown to you.', 'bad');
-    } else if (state.lore.lawyerSummoned !== true) {
+    if (state.lore.mystic && state.lore.lawyerSummoned !== true) {
       state.lore.lawyerSummoned = true;
       storeTablets();
       addLog('You have summoned a lawyer.', 'good');
-    } else {
+    } else if (state.lore.mystic && state.lore.lawyerSummoned === true) {
       addLog('Your lawyer is already on retainer.', 'good');
     }
   }
@@ -5752,6 +5990,12 @@ function drawNativeRide() {
 
 function drawLawyerIntervention() {
   const tick = state.eventAnim ? state.eventAnim.tick : 0;
+  const animData = state.eventAnim && state.eventAnim.data
+    ? state.eventAnim.data
+    : {};
+  if (state.eventAnim && !state.eventAnim.data) {
+    state.eventAnim.data = animData;
+  }
   const y = 322;
   const nativeX = 352;
   const hopEnd = 36;
@@ -5828,22 +6072,31 @@ function drawLawyerIntervention() {
     ctx.fillText(text, nativeX - 40, y - 88);
   };
 
-  if (tick > hopEnd && tick <= settleEnd) {
+  let raspStage = 0;
+  if (tick > hopEnd && tick <= line1End) {
     bubbleForLawyer('Hey!');
-  } else if (tick > settleEnd && tick <= line1End) {
-    bubbleForLawyer('Hey!');
+    raspStage = 1;
   } else if (tick > line1End && tick <= line2End) {
     bubbleForNative('what do u want?!');
+    raspStage = 2;
   } else if (tick > line2End && tick <= line3End) {
     bubbleForLawyer('You scammed us!');
+    raspStage = 3;
   } else if (tick > line3End && tick <= line4End) {
     bubbleForNative('so?');
+    raspStage = 4;
   } else if (tick > line4End && tick <= line5End) {
     bubbleForLawyer('No scamming! give us what we want and make it double!');
+    raspStage = 5;
   } else if (tick > talkEnd) {
     ctx.fillStyle = '#b9ff8d';
     ctx.font = 'bold 18px Verdana';
     ctx.fillText('CASE CLOSED', 412, 220);
+  }
+
+  if (raspStage > 0 && animData.lawyerRaspStage !== raspStage) {
+    playNativeRaspSound();
+    animData.lawyerRaspStage = raspStage;
   }
 }
 
