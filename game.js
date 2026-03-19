@@ -4871,6 +4871,10 @@ function resolveRoundState(checkWin, options = {}) {
 
   if (!state.gameOver && state.food <= 0) {
     state.deathMode = 'starve';
+    const starvingNearNatives = state.traderOpen || (state.eventAnim && state.eventAnim.type === 'natives');
+    if (starvingNearNatives) {
+      triggerEventAnimation('nativeExit', 120);
+    }
     endGame('Out of food. The crawler rolls to a stop.', 'starve');
   }
 
@@ -5537,6 +5541,11 @@ function drawEventAnimation() {
     return;
   }
 
+  if (type === 'nativeExit') {
+    drawNativeExit();
+    return;
+  }
+
   if (type === 'lawyer') {
     drawLawyerIntervention();
     return;
@@ -5918,9 +5927,12 @@ function drawWindmill() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
-function drawNatives() {
+function drawNatives(options = {}) {
   const { x, y } = getCrawlerPosition();
-  const tick = Math.floor(state.eventAnim.tick) % 3;
+  const tick = state.eventAnim ? Math.floor(state.eventAnim.tick) % 3 : 0;
+  const xOffset = typeof options.xOffset === 'number' ? options.xOffset : 0;
+  const showTradePrompt = options.showTradePrompt !== false;
+  const questionColor = typeof options.questionColor === 'string' ? options.questionColor : '';
   const pack = [
     { ox: 54, oy: 4, scale: 1 },
     { ox: 84, oy: 0, scale: 1.15 },
@@ -5928,7 +5940,7 @@ function drawNatives() {
   ];
 
   for (const native of pack) {
-    const nx = x + native.ox;
+    const nx = x + native.ox + xOffset;
     const ny = y + native.oy;
     const s = native.scale;
 
@@ -5971,11 +5983,39 @@ function drawNatives() {
 
     ctx.fillStyle = '#80ffb3';
     ctx.fillRect(nx + 20 * s, ny - 4 * s + tick, 2 * s, 2 * s);
+
+    if (questionColor) {
+      const bubbleW = 14 * s;
+      const bubbleH = 12 * s;
+      const bubbleX = nx + 1 * s;
+      const bubbleY = ny - 50 * s - tick;
+      ctx.fillStyle = questionColor;
+      ctx.fillRect(bubbleX, bubbleY, bubbleW, bubbleH);
+      ctx.fillStyle = '#1a2a38';
+      ctx.font = 'bold 11px Courier New';
+      ctx.fillText('?', bubbleX + 4 * s, bubbleY + 9 * s);
+    }
   }
 
-  ctx.fillStyle = '#a6ff7f';
-  ctx.font = '14px Courier New';
-  ctx.fillText('TRADE?', x + 42, y - 42);
+  if (showTradePrompt) {
+    ctx.fillStyle = '#a6ff7f';
+    ctx.font = '14px Courier New';
+    ctx.fillText('TRADE?', x + 42, y - 42);
+  }
+}
+
+function drawNativeExit() {
+  const tick = state.eventAnim ? state.eventAnim.tick : 0;
+  const progress = Math.min(1, tick / 96);
+  const shift = Math.floor(progress * (canvas.width + 120));
+  drawNatives({
+    xOffset: shift,
+    showTradePrompt: false,
+    questionColor: '#9de9ff',
+  });
+
+  ctx.fillStyle = 'rgba(157, 233, 255, 0.08)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
 function drawNativeRide() {
