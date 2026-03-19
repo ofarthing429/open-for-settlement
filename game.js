@@ -26,6 +26,10 @@ const declineTraderBtn = document.getElementById('declineTraderBtn');
 const tabletPanel = document.getElementById('tabletPanel');
 const tabletTitle = document.getElementById('tabletTitle');
 const tabletBody = document.getElementById('tabletBody');
+const tabletNav = document.getElementById('tabletNav');
+const tabletPrevBtn = document.getElementById('tabletPrevBtn');
+const tabletNextBtn = document.getElementById('tabletNextBtn');
+const tabletCounter = document.getElementById('tabletCounter');
 const templeVision = document.getElementById('templeVision');
 const templeVisionText = document.getElementById('templeVisionText');
 const closeTabletBtn = document.getElementById('closeTabletBtn');
@@ -124,6 +128,8 @@ const windmillStatus = document.getElementById('windmillStatus');
 const tabletStatus = document.getElementById('tabletStatus');
 const readTabletBtn = document.getElementById('readTabletBtn');
 const log = document.getElementById('log');
+const logNoteInput = document.getElementById('logNoteInput');
+const logNoteBtn = document.getElementById('logNoteBtn');
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -139,9 +145,14 @@ const RECORD_WINS_STORAGE_KEY = 'black-sand-colony-run-record-wins';
 const RECORD_BEST_POINTS_STORAGE_KEY = 'black-sand-colony-run-record-best-points';
 const RECORD_BEST_TURNS_STORAGE_KEY = 'black-sand-colony-run-record-best-turns';
 const WIN_REWARD_POINTS = 50;
+const FLY_JACKPOT_POINTS = 500;
+const WORM_COMPLIMENT_POINTS = 1000;
+const LAWYER_INTERVENTION_POINTS = 50;
+const NATIVE_SCAM_RATE_MULT = 1;
 const TABLET_STORAGE_KEY = 'black-sand-colony-run-tablets';
 const COLONY_STORAGE_KEY = 'black-sand-colony-run-colony';
 const COLONIZE_DELAY_STORAGE_KEY = 'black-sand-colony-run-colonize-delay';
+const SONAR_WORM_BLOCKED_STORAGE_KEY = 'black-sand-colony-sonar-blocked-worm';
 
 const REGION_DATA = {
   forest: {
@@ -206,6 +217,451 @@ const MAP_SIZE = 13;
 const MAINLAND_SIZE = 30;
 const MINE_CAP = 500;
 const MAINLAND_MASK = buildMainlandMask();
+const AUDIO_ENABLED = true;
+const audioState = {
+  ctx: null,
+  master: null,
+};
+
+function ensureAudioContext() {
+  if (!AUDIO_ENABLED) {
+    return null;
+  }
+  if (audioState.ctx) {
+    return audioState.ctx;
+  }
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) {
+    return null;
+  }
+  const ctx = new AudioCtx();
+  const master = ctx.createGain();
+  master.gain.value = 0.16;
+  master.connect(ctx.destination);
+  audioState.ctx = ctx;
+  audioState.master = master;
+  return ctx;
+}
+
+function unlockAudioContext() {
+  const ctx = ensureAudioContext();
+  if (!ctx) {
+    return;
+  }
+  if (ctx.state === 'suspended') {
+    ctx.resume();
+  }
+}
+
+function playCrawlerMoveSound(isJumpTurn) {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+  const duration = isJumpTurn ? 0.2 : 0.28;
+  const baseFreq = isJumpTurn ? 74 : 58;
+  const endFreq = isJumpTurn ? 52 : 44;
+
+  const engine = ctx.createOscillator();
+  engine.type = 'sawtooth';
+  engine.frequency.setValueAtTime(baseFreq, now);
+  engine.frequency.exponentialRampToValueAtTime(endFreq, now + duration);
+
+  const engineGain = ctx.createGain();
+  engineGain.gain.setValueAtTime(0.0001, now);
+  engineGain.gain.linearRampToValueAtTime(isJumpTurn ? 0.08 : 0.11, now + 0.02);
+  engineGain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+  const grit = ctx.createOscillator();
+  grit.type = 'square';
+  grit.frequency.setValueAtTime(isJumpTurn ? 30 : 24, now);
+  const gritGain = ctx.createGain();
+  gritGain.gain.setValueAtTime(0.0001, now);
+  gritGain.gain.linearRampToValueAtTime(0.035, now + 0.02);
+  gritGain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+  engine.connect(engineGain);
+  grit.connect(gritGain);
+  engineGain.connect(audioState.master);
+  gritGain.connect(audioState.master);
+
+  engine.start(now);
+  grit.start(now);
+  engine.stop(now + duration + 0.01);
+  grit.stop(now + duration + 0.01);
+}
+
+function playNibbloraxMunchSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+
+  // Three quick crunchy bites.
+  for (let i = 0; i < 3; i += 1) {
+    const t = now + (i * 0.08);
+    const bite = ctx.createOscillator();
+    bite.type = 'square';
+    bite.frequency.setValueAtTime(310 - (i * 28), t);
+    bite.frequency.exponentialRampToValueAtTime(190 - (i * 18), t + 0.06);
+
+    const biteGain = ctx.createGain();
+    biteGain.gain.setValueAtTime(0.0001, t);
+    biteGain.gain.linearRampToValueAtTime(0.1, t + 0.01);
+    biteGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+
+    bite.connect(biteGain);
+    biteGain.connect(audioState.master);
+    bite.start(t);
+    bite.stop(t + 0.08);
+  }
+}
+
+function playOrchardGrassSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+
+  // Soft rustle using filtered noise.
+  const noiseBuffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.5), ctx.sampleRate);
+  const data = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < data.length; i += 1) {
+    data[i] = (Math.random() * 2 - 1) * 0.55;
+  }
+  const noise = ctx.createBufferSource();
+  noise.buffer = noiseBuffer;
+
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.setValueAtTime(1600, now);
+  filter.Q.value = 0.8;
+
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.065, now + 0.05);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.48);
+
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioState.master);
+  noise.start(now);
+  noise.stop(now + 0.5);
+
+  // Light positive tone layered over the rustle.
+  const tone = ctx.createOscillator();
+  tone.type = 'triangle';
+  tone.frequency.setValueAtTime(720, now);
+  tone.frequency.exponentialRampToValueAtTime(980, now + 0.2);
+  const toneGain = ctx.createGain();
+  toneGain.gain.setValueAtTime(0.0001, now);
+  toneGain.gain.linearRampToValueAtTime(0.035, now + 0.03);
+  toneGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
+  tone.connect(toneGain);
+  toneGain.connect(audioState.master);
+  tone.start(now);
+  tone.stop(now + 0.32);
+}
+
+function playJumpWhooshSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+  const noiseBuffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.35), ctx.sampleRate);
+  const data = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < data.length; i += 1) {
+    data[i] = (Math.random() * 2 - 1) * 0.65;
+  }
+  const noise = ctx.createBufferSource();
+  noise.buffer = noiseBuffer;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.setValueAtTime(420, now);
+  filter.frequency.exponentialRampToValueAtTime(1800, now + 0.24);
+  filter.Q.value = 0.8;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.11, now + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioState.master);
+  noise.start(now);
+  noise.stop(now + 0.3);
+}
+
+function playWormRoarSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+  const roar = ctx.createOscillator();
+  roar.type = 'sawtooth';
+  roar.frequency.setValueAtTime(82, now);
+  roar.frequency.exponentialRampToValueAtTime(58, now + 0.28);
+  roar.frequency.exponentialRampToValueAtTime(74, now + 0.52);
+  const sub = ctx.createOscillator();
+  sub.type = 'triangle';
+  sub.frequency.setValueAtTime(39, now);
+  sub.frequency.exponentialRampToValueAtTime(28, now + 0.52);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.14, now + 0.03);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.62);
+  roar.connect(gain);
+  sub.connect(gain);
+  gain.connect(audioState.master);
+  roar.start(now);
+  sub.start(now);
+  roar.stop(now + 0.64);
+  sub.stop(now + 0.64);
+}
+
+function playWeatherWhistleSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+  const wind = ctx.createOscillator();
+  wind.type = 'triangle';
+  wind.frequency.setValueAtTime(940, now);
+  wind.frequency.exponentialRampToValueAtTime(540, now + 0.2);
+  wind.frequency.exponentialRampToValueAtTime(1040, now + 0.45);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.065, now + 0.04);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
+  wind.connect(gain);
+  gain.connect(audioState.master);
+  wind.start(now);
+  wind.stop(now + 0.52);
+}
+
+function playNativeRaspSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+
+  // Grainy throat layer.
+  const noiseBuffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.28), ctx.sampleRate);
+  const data = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < data.length; i += 1) {
+    data[i] = (Math.random() * 2 - 1) * 0.85;
+  }
+  const noise = ctx.createBufferSource();
+  noise.buffer = noiseBuffer;
+  const throatFilter = ctx.createBiquadFilter();
+  throatFilter.type = 'bandpass';
+  throatFilter.frequency.setValueAtTime(420, now);
+  throatFilter.frequency.exponentialRampToValueAtTime(300, now + 0.18);
+  throatFilter.Q.value = 1.4;
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.setValueAtTime(0.0001, now);
+  noiseGain.gain.linearRampToValueAtTime(0.075, now + 0.02);
+  noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.24);
+  noise.connect(throatFilter);
+  throatFilter.connect(noiseGain);
+  noiseGain.connect(audioState.master);
+  noise.start(now);
+  noise.stop(now + 0.26);
+
+  // Two rough vocal pulses.
+  for (let i = 0; i < 2; i += 1) {
+    const t = now + (i * 0.11);
+    const voice = ctx.createOscillator();
+    voice.type = 'sawtooth';
+    voice.frequency.setValueAtTime(165 - (i * 14), t);
+    voice.frequency.exponentialRampToValueAtTime(118 - (i * 10), t + 0.08);
+    const voiceGain = ctx.createGain();
+    voiceGain.gain.setValueAtTime(0.0001, t);
+    voiceGain.gain.linearRampToValueAtTime(0.058, t + 0.015);
+    voiceGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
+    voice.connect(voiceGain);
+    voiceGain.connect(audioState.master);
+    voice.start(t);
+    voice.stop(t + 0.11);
+  }
+}
+
+function playTradeChingSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+  const a = ctx.createOscillator();
+  a.type = 'triangle';
+  a.frequency.setValueAtTime(980, now);
+  a.frequency.exponentialRampToValueAtTime(1320, now + 0.08);
+  const b = ctx.createOscillator();
+  b.type = 'triangle';
+  b.frequency.setValueAtTime(1320, now + 0.06);
+  b.frequency.exponentialRampToValueAtTime(1700, now + 0.16);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.095, now + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.24);
+  a.connect(gain);
+  b.connect(gain);
+  gain.connect(audioState.master);
+  a.start(now);
+  b.start(now + 0.06);
+  a.stop(now + 0.2);
+  b.stop(now + 0.24);
+}
+
+function playMetalClangSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+  const hit = ctx.createOscillator();
+  hit.type = 'triangle';
+  hit.frequency.setValueAtTime(520, now);
+  hit.frequency.exponentialRampToValueAtTime(240, now + 0.16);
+  const ring = ctx.createOscillator();
+  ring.type = 'sine';
+  ring.frequency.setValueAtTime(920, now + 0.01);
+  ring.frequency.exponentialRampToValueAtTime(610, now + 0.22);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.11, now + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
+  hit.connect(gain);
+  ring.connect(gain);
+  gain.connect(audioState.master);
+  hit.start(now);
+  ring.start(now + 0.01);
+  hit.stop(now + 0.2);
+  ring.stop(now + 0.28);
+}
+
+function playDiggingSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+  const noiseBuffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.45), ctx.sampleRate);
+  const data = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < data.length; i += 1) {
+    data[i] = (Math.random() * 2 - 1) * 0.8;
+  }
+  const noise = ctx.createBufferSource();
+  noise.buffer = noiseBuffer;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.setValueAtTime(360, now);
+  filter.frequency.exponentialRampToValueAtTime(980, now + 0.3);
+  filter.Q.value = 1.1;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.09, now + 0.03);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioState.master);
+  noise.start(now);
+  noise.stop(now + 0.45);
+}
+
+function playCoralScrapeSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+
+  const noiseBuffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.38), ctx.sampleRate);
+  const data = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < data.length; i += 1) {
+    data[i] = (Math.random() * 2 - 1) * 0.8;
+  }
+  const noise = ctx.createBufferSource();
+  noise.buffer = noiseBuffer;
+
+  const scrapeFilter = ctx.createBiquadFilter();
+  scrapeFilter.type = 'bandpass';
+  scrapeFilter.frequency.setValueAtTime(1800, now);
+  scrapeFilter.frequency.exponentialRampToValueAtTime(850, now + 0.3);
+  scrapeFilter.Q.value = 1.2;
+
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.085, now + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+
+  noise.connect(scrapeFilter);
+  scrapeFilter.connect(gain);
+  gain.connect(audioState.master);
+  noise.start(now);
+  noise.stop(now + 0.38);
+}
+
+function playSinkSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+  const gurgle = ctx.createOscillator();
+  gurgle.type = 'sine';
+  gurgle.frequency.setValueAtTime(130, now);
+  gurgle.frequency.exponentialRampToValueAtTime(70, now + 0.22);
+  const grit = ctx.createOscillator();
+  grit.type = 'triangle';
+  grit.frequency.setValueAtTime(240, now);
+  grit.frequency.exponentialRampToValueAtTime(110, now + 0.24);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.08, now + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
+  gurgle.connect(gain);
+  grit.connect(gain);
+  gain.connect(audioState.master);
+  gurgle.start(now);
+  grit.start(now);
+  gurgle.stop(now + 0.3);
+  grit.stop(now + 0.3);
+}
+
+function playSpraySound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+  const noiseBuffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.28), ctx.sampleRate);
+  const data = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < data.length; i += 1) {
+    data[i] = (Math.random() * 2 - 1) * 0.7;
+  }
+  const noise = ctx.createBufferSource();
+  noise.buffer = noiseBuffer;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'highpass';
+  filter.frequency.setValueAtTime(1700, now);
+  filter.frequency.exponentialRampToValueAtTime(1100, now + 0.2);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.085, now + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.24);
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioState.master);
+  noise.start(now);
+  noise.stop(now + 0.26);
+}
 
 function buildMainlandMask() {
   const land = new Set();
@@ -292,6 +748,10 @@ const TABLETS = {
     title: 'Ancient Tablet: Terrarex',
     body: `The great city of Terrarex, thought to be unstoppable, was wiped out by the Elder Vermis. The horrific monster annihilated Terrarex by turning the land against them. The land swallowed Terrarex, and no person could escape their prison. The people of Terrarex made a secret tunnel that led to the surface in which the exact coordinates are unknown, and inside, there are greater treasures and wisdom than one could ever imagine. But, it is cursed, those that search for it in the Mergi Wastes never return.\n\nScrawled at the bottom of the text lay the coordinates of the temple.`,
   },
+  mystic: {
+    title: 'Ancient Tablet: Untranslated Slab',
+    body: `Sszh-kaaru vellin tar.\nMori thaal-vek ruun.\nGhara nith ossu-vel.\nBibiddi bobbidi boo.\n\n(Only one line is recognizable. The rest is in a mysterious language.)`,
+  },
 };
 
 const CAPITAL_MARKET_STALLS = [
@@ -309,6 +769,9 @@ const state = {
   food: 0,
   points: 0,
   runStartPoints: 0,
+  skipStandardWinReward: false,
+  sonarBlockedWormEver: false,
+  wormComplimentUsed: false,
   hp: 100,
   maxHp: 100,
   turnsToWin: 0,
@@ -343,6 +806,8 @@ const state = {
   traderSellOffers: [],
   traderOpen: false,
   tabletOpen: false,
+  tabletReaderMode: '',
+  currentTabletId: '',
   marketOpen: false,
   islandOpen: false,
   pendingPlacement: null,
@@ -357,6 +822,8 @@ const state = {
   colony: null,
   lore: {
     terrarex: false,
+    mystic: false,
+    lawyerSummoned: false,
   },
   records: {
     runs: 0,
@@ -376,7 +843,9 @@ const eventTable = [
   { key: 'orchard', weight: 6, text: 'Glowcore Orchard discovered. +50 food' },
   { key: 'plutonium', weight: 3, text: 'Plutonium deposit found. Reactor jump engaged.' },
   { key: 'tablet', weight: 2, text: 'A black stone tablet juts half-buried from the sand.' },
+  { key: 'tabletMystic', weight: 0.8, text: 'You uncover an unfamiliar ancient tablet etched in unknown script.' },
   { key: 'natives', weight: 8, text: 'Native traders flag you down from the dunes.' },
+  { key: 'fly', weight: 0.2, text: 'SoMeThInG hAPpEnEd' },
   { key: 'worm', weight: 1, kill: true, text: 'The worm erupts from beneath you. Instant kill.' },
 ];
 
@@ -422,8 +891,10 @@ buyHpBtn.addEventListener('click', () => buyItem('maxHp'));
 buySonarBtn.addEventListener('click', () => buyItem('sonar'));
 buyInvestorBtn.addEventListener('click', () => buyItem('investor'));
 declineTraderBtn.addEventListener('click', closeNativeTrader);
-readTabletBtn.addEventListener('click', () => openTabletReader('terrarex'));
+readTabletBtn.addEventListener('click', openDiscoveredTabletReader);
 closeTabletBtn.addEventListener('click', closeTabletReader);
+tabletPrevBtn.addEventListener('click', () => cycleTabletReader(-1));
+tabletNextBtn.addEventListener('click', () => cycleTabletReader(1));
 colonizeYesBtn.addEventListener('click', openColonyMap);
 colonizeNoBtn.addEventListener('click', delayColonizationPrompt);
 manageColonyBtn.addEventListener('click', showColonyPanel);
@@ -440,9 +911,18 @@ skipMainlandCycleBtn.addEventListener('click', skipMainlandCycle);
 closeIslandTakeoverBtn.addEventListener('click', closeIslandTakeoverPanel);
 startTempleSearchBtn.addEventListener('click', startTempleSearch);
 readWallRiddleBtn.addEventListener('click', openTempleRiddleReader);
+logNoteBtn.addEventListener('click', addPlayerLogNote);
+logNoteInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    addPlayerLogNote();
+  }
+});
 window.addEventListener('keydown', handleCapitalMarketKeydown);
 
 function startGame() {
+  unlockAudioContext();
+
   const chosenFood = Number(foodInput.value);
   const safeFood = Number.isFinite(chosenFood) ? Math.max(20, Math.min(300, chosenFood)) : 120;
 
@@ -454,8 +934,13 @@ function startGame() {
   state.runStartPoints = state.points;
   state.maxHp = loadStoredMaxHp();
   state.investorOwned = loadStoredInvestor();
+  state.sonarBlockedWormEver = loadSonarBlockedWormEver();
   state.records = loadStoredRecords();
   state.lore = loadStoredTablets();
+  state.skipStandardWinReward = false;
+  state.wormComplimentUsed = false;
+  state.currentTabletId = '';
+  state.tabletReaderMode = '';
   state.colonizeDelayTarget = loadColonizeDelay();
   state.colony = loadStoredColony();
   state.hp = state.maxHp;
@@ -504,6 +989,7 @@ function startGame() {
   nextTurnBtn.disabled = false;
 
   log.innerHTML = '';
+  logNoteInput.value = '';
   addLog(`Mission start. Reach turn ${state.turnsToWin} to win.`, 'good');
   addLog(`Starting food: ${state.food}. Food drain is 10 per turn.`);
 
@@ -549,9 +1035,11 @@ function processTurn({ skipHazards, skipLabel = '' }) {
   if (!state.running || state.gameOver || state.traderOpen || state.tabletOpen) {
     return;
   }
+  unlockAudioContext();
 
   state.turn += 1;
   state.position = Math.min(state.position + 1, state.trackLength - 1);
+  playCrawlerMoveSound(skipHazards);
   if (state.cooldowns.bouncer > 0) {
     state.cooldowns.bouncer -= 1;
   }
@@ -609,17 +1097,24 @@ function applyEvent(event) {
     return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
   }
 
-  const isGoodEvent = event.key === 'wreckage' || event.key === 'orchard';
+  const isGoodEvent = event.key === 'wreckage'
+    || event.key === 'orchard'
+    || event.key === 'fly'
+    || event.key === 'tablet'
+    || event.key === 'tabletMystic';
   addLog(event.text, isGoodEvent ? 'good' : 'bad');
 
   if (event.kill) {
     if (state.sonarArmed) {
       state.sonarArmed = false;
+      state.sonarBlockedWormEver = true;
+      storeSonarBlockedWormEver(true);
       addLog('Sonar disrupter scattered the worm before it surfaced.', 'good');
       triggerEventAnimation('sonar', 64);
       return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
     }
 
+    playWormRoarSound();
     state.hp = 0;
     state.deathMode = 'worm';
     triggerEventAnimation('worm', 72);
@@ -630,6 +1125,7 @@ function applyEvent(event) {
   if (event.key === 'nibblorax') {
     if (state.sprayArmed) {
       state.sprayArmed = false;
+      playSpraySound();
       addLog('Spray blast repelled the Nibblorax.', 'good');
       triggerEventAnimation('spray', 60);
       return { sprayConsumed: true, autoSkipTurns: 0, autoSkipLabel: '' };
@@ -637,25 +1133,50 @@ function applyEvent(event) {
 
     const eaten = randInt(15, 150);
     state.food = Math.max(0, state.food - eaten);
+    playNibbloraxMunchSound();
     addLog(`Nibblorax eats ${eaten} food.`, 'bad');
     triggerEventAnimation('nibblorax', 68, { eaten });
     return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
   }
 
   if (event.key === 'natives') {
+    playNativeRaspSound();
     openNativeTrader();
     triggerEventAnimation('natives', 88);
     return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
   }
 
+  if (event.key === 'fly') {
+    const { x, y } = getCrawlerPosition();
+    state.hp = Math.max(1, state.hp - 5);
+    state.points += FLY_JACKPOT_POINTS;
+    storePoints();
+    state.skipStandardWinReward = true;
+    triggerEventAnimation('fly', 360, {
+      originX: x + 70,
+      originY: y - 56,
+    });
+    endGame('Mission success. You won.', 'win', { skipFinalLog: true });
+    return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
+  }
+
   if (event.key === 'tablet') {
+    playDiggingSound();
     collectTablet('terrarex');
+    triggerEventAnimation('tablet', 84);
+    return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
+  }
+
+  if (event.key === 'tabletMystic') {
+    playDiggingSound();
+    collectTablet('mystic');
     triggerEventAnimation('tablet', 84);
     return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
   }
 
   if (event.key === 'wreckage') {
     state.hp = Math.min(state.maxHp, state.hp + 25);
+    playMetalClangSound();
     applyWreckageLoot();
     triggerEventAnimation('wreckage', 56);
     return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
@@ -663,11 +1184,13 @@ function applyEvent(event) {
 
   if (event.key === 'orchard') {
     state.food += 50;
+    playOrchardGrassSound();
     triggerEventAnimation('orchard', 56);
     return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
   }
 
   if (event.key === 'plutonium') {
+    playJumpWhooshSound();
     addLog('Plutonium burst launches you 3 turns forward with no hazards.', 'good');
     triggerEventAnimation('plutonium', 60);
     return { sprayConsumed: false, autoSkipTurns: 3, autoSkipLabel: 'Plutonium jump: hazards skipped this turn.' };
@@ -681,6 +1204,7 @@ function applyEvent(event) {
 
   if (event.key === 'weather' && state.windmillArmed) {
     state.windmillArmed = false;
+    playWeatherWhistleSound();
     addLog('Windmill catches the storm and spins you past it. Free skip turn.', 'good');
     triggerEventAnimation('windmill', 72);
     return { sprayConsumed: false, autoSkipTurns: 1, autoSkipLabel: 'Windmill glide: the storm gives you a free turn.' };
@@ -689,12 +1213,20 @@ function applyEvent(event) {
   if (event.key === 'coral' && state.pickaxeArmed) {
     state.pickaxeArmed = false;
     state.hp = Math.min(state.maxHp, state.hp + 20);
+    playCoralScrapeSound();
     addLog('Special pickaxe turns the glowcore coral into +20 HP.', 'good');
     triggerEventAnimation('pickaxe', 72);
     return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
   }
 
   state.lastDamageSource = event.key;
+  if (event.key === 'weather') {
+    playWeatherWhistleSound();
+  } else if (event.key === 'sink') {
+    playSinkSound();
+  } else if (event.key === 'coral') {
+    playCoralScrapeSound();
+  }
   state.hp = Math.max(0, state.hp - event.dmg);
   triggerEventAnimation(event.key, 56);
   return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
@@ -740,6 +1272,7 @@ function useRepairKit() {
   }
 
   state.hp = Math.min(state.maxHp, state.hp + 30);
+  playMetalClangSound();
   addLog('Repair kit used. +30 HP.', 'good');
   triggerEventAnimation('repair', 52);
   syncHud();
@@ -769,6 +1302,7 @@ function useSpray() {
   }
 
   state.sprayArmed = true;
+  playSpraySound();
   addLog('Anti-Nib spray armed for this turn.', 'good');
   triggerEventAnimation('spray', 52);
   syncInventoryUi();
@@ -828,6 +1362,7 @@ function useBouncer() {
     return;
   }
   state.cooldowns.bouncer = 6;
+  playJumpWhooshSound();
   addLog('Bouncer engaged: jumping 5 turns with hazard immunity.', 'good');
 
   for (let i = 0; i < 5; i += 1) {
@@ -903,6 +1438,15 @@ function consumePossiblyFakeItem(key, scamMessage) {
 
   state.inventory[key] -= 1;
   if (state.fakeInventory[key] > 0) {
+    if (state.lore.lawyerSummoned === true) {
+      state.fakeInventory[key] -= 1;
+      state.points += LAWYER_INTERVENTION_POINTS;
+      storePoints();
+      addLog('SoMeThInG hApPeNeD', 'good');
+      triggerEventAnimation('lawyer', 72);
+      syncHud();
+      return false;
+    }
     state.fakeInventory[key] -= 1;
     addLog(scamMessage, 'bad');
     return true;
@@ -943,6 +1487,18 @@ function closeNativeTrader() {
   }
 }
 
+function triggerLawyerIntervention() {
+  triggerEventAnimation('lawyer', 1700);
+  nativeTraderPanel.classList.add('hidden');
+  draw();
+  window.setTimeout(() => {
+    if (state.traderOpen && !state.gameOver) {
+      nativeTraderPanel.classList.remove('hidden');
+      renderNativeOffers();
+    }
+  }, 28000);
+}
+
 function collectTablet(id) {
   const tablet = TABLETS[id];
   if (!tablet) {
@@ -951,6 +1507,7 @@ function collectTablet(id) {
 
   if (!state.lore[id]) {
     state.lore[id] = true;
+    state.currentTabletId = id;
     storeTablets();
     addLog(`Recovered ${tablet.title}. It has been added to your lore archive.`, 'good');
   } else {
@@ -960,19 +1517,76 @@ function collectTablet(id) {
   syncLoreUi();
 }
 
+function getDiscoveredTabletIds() {
+  const ordered = ['terrarex', 'mystic'];
+  return ordered.filter((id) => state.lore[id] === true && TABLETS[id]);
+}
+
+function renderTabletReader() {
+  const discovered = getDiscoveredTabletIds();
+  if (state.tabletReaderMode !== 'tablet' || discovered.length === 0) {
+    tabletNav.classList.add('hidden');
+    return;
+  }
+
+  let index = discovered.indexOf(state.currentTabletId);
+  if (index === -1) {
+    index = 0;
+    state.currentTabletId = discovered[0];
+  }
+  const tablet = TABLETS[state.currentTabletId];
+  tabletTitle.textContent = tablet.title;
+  tabletBody.textContent = tablet.body;
+  templeVision.classList.add('hidden');
+
+  tabletNav.classList.remove('hidden');
+  tabletCounter.textContent = `${index + 1} / ${discovered.length}`;
+  tabletPrevBtn.disabled = discovered.length <= 1;
+  tabletNextBtn.disabled = discovered.length <= 1;
+}
+
+function cycleTabletReader(delta) {
+  if (!state.tabletOpen || state.tabletReaderMode !== 'tablet') {
+    return;
+  }
+  const discovered = getDiscoveredTabletIds();
+  if (discovered.length <= 1) {
+    return;
+  }
+  let index = discovered.indexOf(state.currentTabletId);
+  if (index === -1) {
+    index = 0;
+  }
+  const next = (index + delta + discovered.length) % discovered.length;
+  state.currentTabletId = discovered[next];
+  renderTabletReader();
+}
+
 function openTabletReader(id) {
   if (!state.lore[id] || !TABLETS[id]) {
     return;
   }
 
-  const tablet = TABLETS[id];
   state.tabletOpen = true;
-  tabletTitle.textContent = tablet.title;
-  tabletBody.textContent = tablet.body;
+  state.tabletReaderMode = 'tablet';
+  state.currentTabletId = id;
+  renderTabletReader();
   templeVision.classList.add('hidden');
   tabletPanel.classList.remove('hidden');
   nextTurnBtn.disabled = true;
   syncInventoryUi();
+}
+
+function openDiscoveredTabletReader() {
+  const discovered = getDiscoveredTabletIds();
+  if (discovered.length === 0) {
+    return;
+  }
+  if (state.currentTabletId && discovered.includes(state.currentTabletId)) {
+    openTabletReader(state.currentTabletId);
+    return;
+  }
+  openTabletReader(discovered[0]);
 }
 
 function openTempleRiddleReader() {
@@ -981,6 +1595,7 @@ function openTempleRiddleReader() {
   }
 
   state.tabletOpen = true;
+  state.tabletReaderMode = 'riddle';
   tabletTitle.textContent = 'Temple Wall Riddle';
   tabletBody.textContent = [
     'The one who seeks fortune',
@@ -995,6 +1610,7 @@ function openTempleRiddleReader() {
   ].join('\n');
   templeVisionText.textContent = 'While reading, you see a vision of a buried stepped temple under the black glow of Plutonium Flats.';
   templeVision.classList.remove('hidden');
+  tabletNav.classList.add('hidden');
   tabletPanel.classList.remove('hidden');
   nextTurnBtn.disabled = true;
   syncInventoryUi();
@@ -1002,8 +1618,10 @@ function openTempleRiddleReader() {
 
 function closeTabletReader() {
   state.tabletOpen = false;
+  state.tabletReaderMode = '';
   tabletPanel.classList.add('hidden');
   templeVision.classList.add('hidden');
+  tabletNav.classList.add('hidden');
   if (!state.gameOver && !state.traderOpen) {
     nextTurnBtn.disabled = false;
   }
@@ -2899,6 +3517,7 @@ function attemptMarketTrade(stall) {
     state.colony.stability = Math.min(100, state.colony.stability + 10);
   }
   state.marketMessage = `Traded ${stall.cost} points at ${stall.name}. ${stall.desc}.`;
+  playTradeChingSound();
   addColonyLog(`Traded ${stall.cost} points at ${stall.name}. ${stall.desc}.`, 'good');
   storePoints();
   storeColony();
@@ -3851,24 +4470,38 @@ function buyNativeOffer(offerId) {
 
   state.points -= offer.price;
   storePoints();
+  playTradeChingSound();
+
+  const lawyerCatchesScam = Boolean(offer.scam) && state.lore.lawyerSummoned === true;
+  const payoutMult = lawyerCatchesScam ? 2 : 1;
+  if (lawyerCatchesScam) {
+    triggerLawyerIntervention();
+    offer.scam = false;
+    state.points += LAWYER_INTERVENTION_POINTS;
+    storePoints();
+    addLog('SoMeThInG hApPeNeD', 'good');
+  }
 
   if (offer.kind === 'foodCrate') {
     if (offer.scam) {
       addLog('The food crate was packed with black sand. Scam trade.', 'bad');
     } else {
-      state.food += 50;
-      addLog(`Bought Food Crate from the natives for ${offer.price} points. +50 food.`, 'good');
+      const gain = 50 * payoutMult;
+      state.food += gain;
+      addLog(`Bought Food Crate from the natives for ${offer.price} points. +${gain} food.`, 'good');
     }
   } else if (offer.scam) {
     state.inventory[offer.inventoryKey] += 1;
     state.fakeInventory[offer.inventoryKey] += 1;
     addLog(`The traders sell you a fake ${offer.label.toLowerCase()}.`, 'bad');
   } else {
-    state.inventory[offer.inventoryKey] += 1;
-    addLog(`Bought ${offer.label} from the natives for ${offer.price} points.`, 'good');
+    state.inventory[offer.inventoryKey] += payoutMult;
+    addLog(`Bought ${offer.label} from the natives for ${offer.price} points. +${payoutMult}.`, 'good');
   }
 
-  triggerEventAnimation('natives', 56, { traded: true });
+  if (!lawyerCatchesScam) {
+    triggerEventAnimation('natives', 56, { traded: true });
+  }
   state.traderOffers = state.traderOffers.filter((item) => item.id !== offerId);
   if (state.traderOffers.length === 0) {
     closeNativeTrader();
@@ -3892,6 +4525,7 @@ function sellNativeOffer(offerId) {
   }
   state.points += offer.price;
   storePoints();
+  playTradeChingSound();
   addLog(`Sold 1 ${offer.label} to the natives for ${offer.price} points.`, 'good');
 
   if (state.inventory[offer.inventoryKey] <= 0) {
@@ -3926,7 +4560,7 @@ function buildNativeOffers() {
       ...picked,
       id: `${picked.kind}-${Date.now()}-${offers.length}-${Math.random().toString(16).slice(2, 6)}`,
       price: randInt(picked.min, picked.max),
-      scam: Math.random() < picked.scamChance,
+      scam: Math.random() < Math.min(0.9, picked.scamChance * NATIVE_SCAM_RATE_MULT),
     });
   }
 
@@ -4025,7 +4659,8 @@ function resolveRoundState(checkWin, options = {}) {
   }
 }
 
-function endGame(message, cause = '') {
+function endGame(message, cause = '', options = {}) {
+  const { skipFinalLog = false } = options;
   state.gameOver = true;
   state.running = false;
   state.traderOpen = false;
@@ -4041,7 +4676,9 @@ function endGame(message, cause = '') {
   state.colony = loadStoredColony();
   nextTurnBtn.disabled = true;
   setItemButtonsDisabled(true);
-  addLog(message, message.includes('success') ? 'good' : 'bad');
+  if (!skipFinalLog) {
+    addLog(message, message.includes('success') ? 'good' : 'bad');
+  }
   syncColonizeUi();
 }
 
@@ -4121,16 +4758,36 @@ function storeInvestor() {
   }
 }
 
+function loadSonarBlockedWormEver() {
+  try {
+    return window.localStorage.getItem(SONAR_WORM_BLOCKED_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function storeSonarBlockedWormEver(value) {
+  try {
+    window.localStorage.setItem(SONAR_WORM_BLOCKED_STORAGE_KEY, value ? 'true' : 'false');
+  } catch {
+    // Ignore storage failures and keep this session-only.
+  }
+}
+
 function loadStoredTablets() {
   try {
     const raw = window.localStorage.getItem(TABLET_STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : {};
     return {
       terrarex: parsed.terrarex === true,
+      mystic: parsed.mystic === true,
+      lawyerSummoned: parsed.lawyerSummoned === true,
     };
   } catch {
     return {
       terrarex: false,
+      mystic: false,
+      lawyerSummoned: false,
     };
   }
 }
@@ -4213,12 +4870,15 @@ function finalizeRun(won) {
   state.records.runs += 1;
   if (won) {
     state.records.wins += 1;
-    state.points += WIN_REWARD_POINTS;
+    if (!state.skipStandardWinReward) {
+      state.points += WIN_REWARD_POINTS;
+    }
     storePoints();
   } else {
     state.points = state.runStartPoints;
     storePoints();
   }
+  state.skipStandardWinReward = false;
   state.records.bestPoints = Math.max(state.records.bestPoints, state.points);
   state.records.bestTurns = Math.max(state.records.bestTurns, state.turn);
   storeRecords();
@@ -4237,10 +4897,18 @@ function syncRecordsUi() {
 }
 
 function syncLoreUi() {
-  const tabletFound = state.lore.terrarex === true;
-  tabletCount.textContent = tabletFound ? '1' : '0';
-  tabletStatus.textContent = tabletFound ? 'Terrarex tablet recovered' : 'None';
-  readTabletBtn.disabled = !tabletFound;
+  const terrarex = state.lore.terrarex === true;
+  const mystic = state.lore.mystic === true;
+  const count = (terrarex ? 1 : 0) + (mystic ? 1 : 0);
+  tabletCount.textContent = String(count);
+  if (mystic) {
+    tabletStatus.textContent = 'Untranslated tablet recovered';
+  } else if (terrarex) {
+    tabletStatus.textContent = 'Terrarex tablet recovered';
+  } else {
+    tabletStatus.textContent = 'None';
+  }
+  readTabletBtn.disabled = count <= 0;
 }
 
 function syncInventoryUi() {
@@ -4268,7 +4936,9 @@ function syncInventoryUi() {
   buyHpBtn.disabled = state.traderOpen || state.points < getStorePrice('maxHp');
   buySonarBtn.disabled = state.traderOpen || state.points < getStorePrice('sonar');
   buyInvestorBtn.disabled = state.traderOpen || state.points < getStorePrice('investor') || state.investorOwned;
-  if (state.lore.terrarex !== true) {
+  logNoteInput.disabled = inactive;
+  logNoteBtn.disabled = inactive;
+  if (state.lore.terrarex !== true && state.lore.mystic !== true) {
     readTabletBtn.disabled = true;
   }
 }
@@ -4286,7 +4956,9 @@ function setItemButtonsDisabled(disabled) {
   buyHpBtn.disabled = disabled;
   buySonarBtn.disabled = disabled;
   buyInvestorBtn.disabled = disabled;
-  readTabletBtn.disabled = disabled || !state.lore.terrarex;
+  logNoteInput.disabled = disabled;
+  logNoteBtn.disabled = disabled;
+  readTabletBtn.disabled = disabled || (state.lore.terrarex !== true && state.lore.mystic !== true);
 }
 
 function addLog(text, tone = '') {
@@ -4294,6 +4966,42 @@ function addLog(text, tone = '') {
   p.className = `logEntry ${tone}`.trim();
   p.textContent = text;
   log.prepend(p);
+}
+
+function addPlayerLogNote() {
+  const note = logNoteInput.value.trim();
+  if (!note || !state.running || state.gameOver) {
+    return;
+  }
+  addLog(`NOTE: ${note}`, 'player');
+  const normalized = note.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (
+    normalized === 'hi worm, you look nice today.'
+    && !state.sonarBlockedWormEver
+    && !state.wormComplimentUsed
+  ) {
+    state.wormComplimentUsed = true;
+    addLog('The Worm returned the compliment.', 'good');
+    state.points += WORM_COMPLIMENT_POINTS;
+    storePoints();
+    syncHud();
+    triggerEventAnimation('wormGift', 200);
+    draw();
+  }
+  const compact = normalized.replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim();
+  const lawyerSpellMatched = compact === 'bibiddi bobbidi boo' || compact === 'bibbidi bobbidi boo';
+  if (lawyerSpellMatched) {
+    if (!state.lore.mystic) {
+      addLog('Nothing answers. The phrase is still unknown to you.', 'bad');
+    } else if (state.lore.lawyerSummoned !== true) {
+      state.lore.lawyerSummoned = true;
+      storeTablets();
+      addLog('You have summoned a lawyer.', 'good');
+    } else {
+      addLog('Your lawyer is already on retainer.', 'good');
+    }
+  }
+  logNoteInput.value = '';
 }
 
 function pickEvent() {
@@ -4521,6 +5229,11 @@ function drawEventAnimation() {
     return;
   }
 
+  if (type === 'wormGift') {
+    drawWormGift();
+    return;
+  }
+
   if (type === 'nibblorax') {
     drawNibblorax();
     return;
@@ -4586,8 +5299,18 @@ function drawEventAnimation() {
     return;
   }
 
+  if (type === 'lawyer') {
+    drawLawyerIntervention();
+    return;
+  }
+
   if (type === 'nativeRide') {
     drawNativeRide();
+    return;
+  }
+
+  if (type === 'fly') {
+    drawFlyEncounter();
     return;
   }
 
@@ -4651,6 +5374,84 @@ function drawWorm() {
   if (tick > 12) {
     ctx.fillStyle = 'rgba(12, 12, 12, 0.65)';
     ctx.fillRect(x - 24, y - 52 + swallow, 48, 76 - swallow);
+  }
+}
+
+function drawWormGift() {
+  const { x, y } = getCrawlerPosition();
+  const tick = state.eventAnim ? state.eventAnim.tick : 0;
+  const phaseRiseEnd = 24;
+  const phaseSpitEnd = 62;
+  const phaseSinkEnd = 96;
+  const phaseTextEnd = 160;
+
+  let wormRise = 0;
+  let wormX = x + 82;
+  let wormY = y + 22;
+  let presentX = x + 78;
+  let presentY = y - 2;
+  let presentVisible = false;
+  let presentOnCrawler = false;
+
+  if (tick <= phaseRiseEnd) {
+    wormRise = (tick / phaseRiseEnd) * 32;
+  } else if (tick <= phaseSpitEnd) {
+    wormRise = 32;
+    const t = (tick - phaseRiseEnd) / (phaseSpitEnd - phaseRiseEnd);
+    presentVisible = true;
+    presentX = (x + 78) + ((x + 4) - (x + 78)) * t;
+    presentY = (y - 6) + ((y - 38) - (y - 6)) * t - (Math.sin(t * Math.PI) * 18);
+  } else if (tick <= phaseSinkEnd) {
+    const t = (tick - phaseSpitEnd) / (phaseSinkEnd - phaseSpitEnd);
+    wormRise = 32 * (1 - t);
+    presentVisible = true;
+    presentOnCrawler = true;
+    presentX = x + 4;
+    presentY = y - 38;
+  } else {
+    presentVisible = true;
+    presentOnCrawler = true;
+    presentX = x + 4;
+    presentY = y - 38;
+  }
+
+  // Worm in front of crawler.
+  if (tick <= phaseSinkEnd) {
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(wormX - 40, wormY + 14 - wormRise, 80, 26);
+    ctx.fillStyle = '#1b1416';
+    ctx.fillRect(wormX - 28, wormY + 10 - wormRise, 56, 14);
+    ctx.fillStyle = '#2b1717';
+    ctx.fillRect(wormX - 16, wormY + 8 - wormRise, 32, 20);
+    ctx.fillStyle = '#f0d8ab';
+    ctx.fillRect(wormX - 14, wormY + 6 - wormRise, 28, 5);
+    ctx.fillRect(wormX - 14, wormY + 28 - wormRise, 28, 5);
+    ctx.fillStyle = '#ff4c4c';
+    for (let i = 0; i < 4; i += 1) {
+      ctx.fillRect(wormX - 24 + i * 12, wormY + 2 - wormRise, 4, 3);
+    }
+  }
+
+  if (presentVisible) {
+    const pulse = Math.floor(tick) % 3;
+    ctx.fillStyle = '#a7d8ff';
+    ctx.fillRect(presentX - 8, presentY - 8, 16, 16);
+    ctx.fillStyle = '#d8f0ff';
+    ctx.fillRect(presentX - 2, presentY - 8, 4, 16);
+    ctx.fillRect(presentX - 8, presentY - 2, 16, 4);
+    ctx.fillStyle = '#ff4a4a';
+    ctx.fillRect(presentX - 5, presentY - 11, 10, 3);
+    if (presentOnCrawler) {
+      ctx.fillStyle = pulse === 0 ? '#fff7bf' : '#ffe98a';
+      ctx.fillRect(presentX - 12, presentY - 12, 4, 4);
+      ctx.fillRect(presentX + 8, presentY + 8, 4, 4);
+    }
+  }
+
+  if (tick > phaseSinkEnd && tick <= phaseTextEnd) {
+    ctx.fillStyle = '#9dffb8';
+    ctx.font = 'bold 18px Verdana';
+    ctx.fillText(`+${WORM_COMPLIMENT_POINTS} POINTS`, x - 14, y - 66);
   }
 }
 
@@ -4949,6 +5750,243 @@ function drawNativeRide() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
+function drawLawyerIntervention() {
+  const tick = state.eventAnim ? state.eventAnim.tick : 0;
+  const y = 322;
+  const nativeX = 352;
+  const hopEnd = 36;
+  const settleEnd = 58;
+  const lineHold = 150; // 5 seconds at ~30 tick/second
+  const line1End = settleEnd + lineHold;
+  const line2End = line1End + lineHold;
+  const line3End = line2End + lineHold;
+  const line4End = line3End + lineHold;
+  const line5End = line4End + lineHold;
+  const talkEnd = line5End;
+  const rawT = Math.min(1, tick / hopEnd);
+  const hopT = tick <= hopEnd ? rawT : 1;
+  const hopX = canvas.width + ((548 - canvas.width) * hopT);
+  const hopY = y - (Math.sin(hopT * Math.PI * 2.5) * 18);
+  const lawyerX = tick <= settleEnd ? hopX : 548;
+  const lawyerY = tick <= settleEnd ? hopY : y;
+
+  // Keep the existing background/crawler view; just stage the argument actors.
+  ctx.fillStyle = 'rgba(14, 18, 28, 0.18)';
+  ctx.fillRect(220, 230, 460, 130);
+
+  // Trader native.
+  ctx.fillStyle = '#6d3f8f';
+  ctx.fillRect(nativeX - 18, y - 44, 36, 42);
+  ctx.fillStyle = '#4fe48a';
+  ctx.fillRect(nativeX - 14, y - 52, 28, 8);
+  ctx.fillStyle = '#2f1f38';
+  ctx.fillRect(nativeX - 6, y - 62, 12, 10);
+  ctx.fillStyle = '#67ff9f';
+  ctx.fillRect(nativeX - 9, y - 46, 5, 4);
+  ctx.fillRect(nativeX + 4, y - 46, 5, 4);
+  ctx.fillStyle = '#26163a';
+  ctx.fillRect(nativeX - 12, y - 6, 7, 8);
+  ctx.fillRect(nativeX + 5, y - 6, 7, 8);
+
+  // Lawyer native: black body/arms/legs with purple head accents.
+  ctx.fillStyle = '#6d3f8f';
+  ctx.fillRect(lawyerX - 14, lawyerY - 52, 28, 8);
+  ctx.fillStyle = '#2f1f38';
+  ctx.fillRect(lawyerX - 6, lawyerY - 62, 12, 10);
+  ctx.fillStyle = '#67ff9f';
+  ctx.fillRect(lawyerX - 9, lawyerY - 46, 5, 4);
+  ctx.fillRect(lawyerX + 4, lawyerY - 46, 5, 4);
+  ctx.fillStyle = '#0f1014';
+  ctx.fillRect(lawyerX - 18, lawyerY - 44, 36, 42); // body
+  ctx.fillRect(lawyerX - 24, lawyerY - 30, 8, 22); // left arm
+  ctx.fillRect(lawyerX + 16, lawyerY - 30, 8, 22); // right arm
+  ctx.fillRect(lawyerX - 12, lawyerY - 6, 8, 8); // left leg
+  ctx.fillRect(lawyerX + 4, lawyerY - 6, 8, 8); // right leg
+  ctx.fillStyle = '#f3f5fa';
+  ctx.fillRect(lawyerX - 2, lawyerY - 40, 4, 26); // tie
+
+  const bubbleForLawyer = (text) => {
+    const isLong = text.length > 28;
+    const width = isLong ? 360 : 180;
+    const height = isLong ? 34 : 20;
+    ctx.fillStyle = '#f2f5ff';
+    ctx.fillRect(lawyerX - 34, lawyerY - 106, width, height);
+    ctx.fillStyle = '#262d3e';
+    ctx.font = 'bold 12px Verdana';
+    if (isLong) {
+      ctx.fillText('No scamming! give us what we want', lawyerX - 28, lawyerY - 92);
+      ctx.fillText('and make it double!', lawyerX - 28, lawyerY - 78);
+    } else {
+      ctx.fillText(text, lawyerX - 28, lawyerY - 86);
+    }
+  };
+  const bubbleForNative = (text) => {
+    ctx.fillStyle = '#f2f5ff';
+    ctx.fillRect(nativeX - 46, y - 102, 168, 20);
+    ctx.fillStyle = '#262d3e';
+    ctx.font = 'bold 12px Verdana';
+    ctx.fillText(text, nativeX - 40, y - 88);
+  };
+
+  if (tick > hopEnd && tick <= settleEnd) {
+    bubbleForLawyer('Hey!');
+  } else if (tick > settleEnd && tick <= line1End) {
+    bubbleForLawyer('Hey!');
+  } else if (tick > line1End && tick <= line2End) {
+    bubbleForNative('what do u want?!');
+  } else if (tick > line2End && tick <= line3End) {
+    bubbleForLawyer('You scammed us!');
+  } else if (tick > line3End && tick <= line4End) {
+    bubbleForNative('so?');
+  } else if (tick > line4End && tick <= line5End) {
+    bubbleForLawyer('No scamming! give us what we want and make it double!');
+  } else if (tick > talkEnd) {
+    ctx.fillStyle = '#b9ff8d';
+    ctx.font = 'bold 18px Verdana';
+    ctx.fillText('CASE CLOSED', 412, 220);
+  }
+}
+
+function drawFlyEncounter() {
+  const { x, y } = getCrawlerPosition();
+  const tick = state.eventAnim ? state.eventAnim.tick : 0;
+  const data = state.eventAnim && state.eventAnim.data ? state.eventAnim.data : {};
+  const originX = typeof data.originX === 'number' ? data.originX : x + 70;
+  const originY = typeof data.originY === 'number' ? data.originY : y - 56;
+
+  const phase1 = 30; // hover
+  const phase2 = 46; // exclamation
+  const phase3 = 92; // five bounce hits
+  const phase4 = 118; // retreat
+  const phase5 = 136; // question bubble
+  const phase6 = 156; // laser shot
+  const phase7 = 184; // fall + flag
+  const phase8 = 206; // flag lowers, fly gone, gun retracts
+
+  let flyX = originX;
+  let flyY = originY;
+  let bubble = '';
+  let showLaser = false;
+  let showGun = false;
+  let upsideDown = false;
+  let showFlag = false;
+  let flyVisible = true;
+
+  if (tick <= phase1) {
+    flyY = originY + Math.sin(tick * 0.45) * 3;
+  } else if (tick <= phase2) {
+    flyY = originY + Math.sin(tick * 0.5) * 3;
+    bubble = '!';
+  } else if (tick <= phase3) {
+    const p = (tick - phase2) / (phase3 - phase2);
+    const bounces = 5;
+    const idx = Math.floor(p * bounces);
+    const local = (p * bounces) - idx;
+    const targetX = x + 14;
+    const targetY = y - 24;
+    if (local < 0.5) {
+      const t = local / 0.5;
+      flyX = originX + ((targetX - originX) * t);
+      flyY = originY + ((targetY - originY) * t) - Math.sin(t * Math.PI) * 10;
+    } else {
+      const t = (local - 0.5) / 0.5;
+      flyX = targetX + ((originX - targetX) * t);
+      flyY = targetY + ((originY - targetY) * t) - Math.sin(t * Math.PI) * 8;
+    }
+    // Hit flashes on contact.
+    if (local > 0.42 && local < 0.58) {
+      ctx.fillStyle = 'rgba(255, 90, 90, 0.22)';
+      ctx.fillRect(x - 36, y - 74, 72, 80);
+    }
+  } else if (tick <= phase4) {
+    const t = (tick - phase3) / (phase4 - phase3);
+    flyX = x + 14 + ((originX - (x + 14)) * t);
+    flyY = y - 24 + ((originY - (y - 24)) * t);
+  } else if (tick <= phase5) {
+    flyY = originY + Math.sin(tick * 0.5) * 2;
+    bubble = '?';
+  } else if (tick <= phase6) {
+    flyY = originY + Math.sin(tick * 0.35) * 2;
+    showGun = true;
+    if (tick > phase5 + 2) {
+      showLaser = true;
+    }
+  } else if (tick <= phase7) {
+    const t = (tick - phase6) / (phase7 - phase6);
+    flyX = originX;
+    flyY = originY + (t * 46);
+    upsideDown = true;
+    showFlag = false;
+    showGun = true;
+  } else if (tick <= phase8) {
+    // aftermath pause: fly gone and gun retracting.
+    flyVisible = false;
+    showGun = tick < (phase7 + 8);
+    showFlag = true;
+  } else {
+    flyVisible = false;
+    showGun = false;
+  }
+
+  if (showGun) {
+    ctx.fillStyle = '#81889d';
+    ctx.fillRect(x + 6, y - 50, 6, 8);
+    ctx.fillStyle = '#a8b1ca';
+    ctx.fillRect(x + 12, y - 48, 10, 3);
+  }
+
+  if (showLaser) {
+    ctx.strokeStyle = '#ff3131';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x + 22, y - 47);
+    ctx.lineTo(flyX - 8, flyY + 2);
+    ctx.stroke();
+    ctx.fillStyle = '#ffb3b3';
+    ctx.fillRect(flyX - 10, flyY - 2, 4, 4);
+  }
+
+  if (flyVisible) {
+    const top = Math.round(flyY);
+    const left = Math.round(flyX);
+    ctx.fillStyle = '#1e1f24';
+    ctx.fillRect(left - 20, top - 10, 40, 20);
+    ctx.fillStyle = '#2a2d34';
+    ctx.fillRect(left - 14, top - 14, 28, 8);
+    ctx.fillStyle = '#9de0ff';
+    ctx.fillRect(left - 24, top - 6, 6, 10);
+    ctx.fillRect(left + 18, top - 6, 6, 10);
+    ctx.fillStyle = '#ff3f3f';
+    ctx.fillRect(left - 8, top - 9, 4, 4);
+    ctx.fillRect(left + 4, top - 9, 4, 4);
+    ctx.fillStyle = '#121318';
+    ctx.fillRect(left - 16, top + 9, 32, 3);
+    if (upsideDown) {
+      ctx.fillStyle = '#e6e8ef';
+      ctx.fillRect(left - 6, top - 2, 12, 2);
+    }
+  }
+
+  if (bubble) {
+    ctx.fillStyle = '#f0f4ff';
+    ctx.fillRect(flyX - 6, flyY - 34, 18, 14);
+    ctx.fillStyle = '#232730';
+    ctx.font = 'bold 12px Verdana';
+    ctx.fillText(bubble, flyX + 1, flyY - 23);
+  }
+
+  if (showFlag && tick <= phase8) {
+    const up = Math.min(1, Math.max(0, (tick - phase7) / 8));
+    const down = tick > (phase7 + 10) ? Math.min(1, (tick - (phase7 + 10)) / 10) : 0;
+    const p = Math.max(0, up - down);
+    const wave = Math.sin(tick * 0.45) * 1.5;
+    ctx.fillStyle = '#d2d6df';
+    ctx.fillRect(originX + 16, originY + 14 - (p * 10), 2, 14);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(originX + 18, originY + 15 + wave - (p * 10), 9, 5);
+  }
+}
+
 function drawStatusStrip() {
   ctx.fillStyle = '#101826';
   ctx.fillRect(0, 0, canvas.width, 28);
@@ -4985,6 +6023,13 @@ function triggerEventAnimation(type, frames, data = null) {
 function buildEventTable() {
   const extraNibbloraxWeight = Math.floor(state.food / 40);
   return eventTable.map((item) => {
+    if (item.key === 'fly' && state.sprayArmed) {
+      return {
+        ...item,
+        weight: 0,
+      };
+    }
+
     if (item.key === 'nibblorax') {
       return {
         ...item,

@@ -88,6 +88,10 @@
           <section class="logPanel">
             <h2>Mission Log</h2>
             <div id="log" class="log"></div>
+            <div class="logComposer">
+              <input id="logNoteInput" type="text" maxlength="120" placeholder="Type a mission note..." />
+              <button id="logNoteBtn" type="button">Add Note</button>
+            </div>
           </section>
         </div>
 
@@ -188,6 +192,11 @@
     <section id="tabletPanel" class="traderPanel hidden">
       <div class="traderCard tabletCard">
         <h2 id="tabletTitle">Ancient Tablet</h2>
+        <div id="tabletNav" class="tabletNav hidden">
+          <button id="tabletPrevBtn" type="button">Prev</button>
+          <span id="tabletCounter" class="tabletCounter">1 / 1</span>
+          <button id="tabletNextBtn" type="button">Next</button>
+        </div>
         <p id="tabletBody" class="tabletBody"></p>
         <div id="templeVision" class="templeVision hidden">
           <div class="templeVisionArt"></div>
