@@ -153,6 +153,7 @@ const TABLET_STORAGE_KEY = 'black-sand-colony-run-tablets';
 const COLONY_STORAGE_KEY = 'black-sand-colony-run-colony';
 const COLONIZE_DELAY_STORAGE_KEY = 'black-sand-colony-run-colonize-delay';
 const SONAR_WORM_BLOCKED_STORAGE_KEY = 'black-sand-colony-sonar-blocked-worm';
+const WORM_COMPLIMENT_COUNT_STORAGE_KEY = 'black-sand-colony-worm-compliment-count';
 
 const REGION_DATA = {
   forest: {
@@ -957,7 +958,7 @@ const state = {
   runStartPoints: 0,
   skipStandardWinReward: false,
   sonarBlockedWormEver: false,
-  wormComplimentUsed: false,
+  wormComplimentCount: 0,
   hp: 100,
   maxHp: 100,
   turnsToWin: 0,
@@ -1129,10 +1130,10 @@ function startGame() {
   state.maxHp = loadStoredMaxHp();
   state.investorOwned = loadStoredInvestor();
   state.sonarBlockedWormEver = loadSonarBlockedWormEver();
+  state.wormComplimentCount = loadWormComplimentCount();
   state.records = loadStoredRecords();
   state.lore = loadStoredTablets();
   state.skipStandardWinReward = false;
-  state.wormComplimentUsed = false;
   state.currentTabletId = '';
   state.tabletReaderMode = '';
   state.colonizeDelayTarget = loadColonizeDelay();
@@ -5018,6 +5019,26 @@ function storeSonarBlockedWormEver(value) {
   }
 }
 
+function loadWormComplimentCount() {
+  try {
+    const raw = Number(window.localStorage.getItem(WORM_COMPLIMENT_COUNT_STORAGE_KEY));
+    if (!Number.isFinite(raw) || raw < 0) {
+      return 0;
+    }
+    return Math.floor(raw);
+  } catch {
+    return 0;
+  }
+}
+
+function storeWormComplimentCount() {
+  try {
+    window.localStorage.setItem(WORM_COMPLIMENT_COUNT_STORAGE_KEY, String(state.wormComplimentCount));
+  } catch {
+    // Ignore storage failures and keep this session-only.
+  }
+}
+
 function loadStoredTablets() {
   try {
     const raw = window.localStorage.getItem(TABLET_STORAGE_KEY);
@@ -5222,15 +5243,24 @@ function addPlayerLogNote() {
   if (
     normalized === 'hi worm, you look nice today.'
     && !state.sonarBlockedWormEver
-    && !state.wormComplimentUsed
   ) {
-    state.wormComplimentUsed = true;
-    addLog('The Worm returned the compliment.', 'good');
-    state.points += WORM_COMPLIMENT_POINTS;
-    storePoints();
-    syncHud();
-    triggerEventAnimation('wormGift', 200);
-    draw();
+    if (state.wormComplimentCount >= 3) {
+      addLog('The Worm feels used.', 'bad');
+      playWormRoarSound();
+      state.hp = 0;
+      state.deathMode = 'worm';
+      triggerEventAnimation('worm', 72);
+      endGame('The worm devoured your crawler.', 'worm');
+    } else {
+      state.wormComplimentCount += 1;
+      storeWormComplimentCount();
+      addLog('The Worm returned the compliment.', 'good');
+      state.points += WORM_COMPLIMENT_POINTS;
+      storePoints();
+      syncHud();
+      triggerEventAnimation('wormGift', 200);
+      draw();
+    }
   }
   const compact = normalized.replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim();
   const lawyerSpellMatched = compact === 'bibiddi bobbidi boo' || compact === 'bibbidi bobbidi boo';
