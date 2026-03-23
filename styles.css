@@ -63,6 +63,8 @@ body {
 
 .setupCard {
   margin-left: 0;
+  position: relative;
+  padding-bottom: 86px;
 }
 
 .titleClicker {
@@ -140,6 +142,119 @@ body {
   gap: 6px 12px;
   color: #d6d0bf;
   font-size: 0.92rem;
+}
+
+.mathModeDock {
+  position: absolute;
+  left: 18px;
+  bottom: 14px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 8px;
+  border: 1px solid rgba(150, 162, 189, 0.32);
+  background: rgba(10, 14, 22, 0.72);
+}
+
+.mathToggleRow,
+.mathOpRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.84rem;
+  color: #d8d3c4;
+}
+
+.mathModeDock input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+.mathModeDock select {
+  border: 1px solid #55617a;
+  background: #0b1019;
+  color: var(--ink);
+  padding: 2px 4px;
+  font-size: 0.82rem;
+}
+
+.mathQuestionPanel {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 8, 12, 0.78);
+}
+
+.mathConsole {
+  width: min(520px, 92vw);
+  border: 3px solid #2f4e68;
+  box-shadow: 0 0 0 3px #0b1118, 0 20px 38px rgba(0, 0, 0, 0.55);
+  background: linear-gradient(180deg, #14202f 0%, #101925 100%);
+  padding: 16px 16px 14px;
+}
+
+.mathConsole.alarmFlash {
+  animation: mathAlarmFlash 0.42s ease-out;
+}
+
+@keyframes mathAlarmFlash {
+  0% {
+    border-color: #d53a3a;
+    box-shadow: 0 0 0 3px #300b0b, 0 20px 38px rgba(120, 8, 8, 0.6);
+    background: linear-gradient(180deg, #411616 0%, #2e1010 100%);
+  }
+  36% {
+    border-color: #5c1b1b;
+    box-shadow: 0 0 0 3px #0b1118, 0 20px 38px rgba(0, 0, 0, 0.55);
+    background: linear-gradient(180deg, #14202f 0%, #101925 100%);
+  }
+  68% {
+    border-color: #d53a3a;
+    box-shadow: 0 0 0 3px #300b0b, 0 20px 38px rgba(120, 8, 8, 0.6);
+    background: linear-gradient(180deg, #411616 0%, #2e1010 100%);
+  }
+  100% {
+    border-color: #2f4e68;
+    box-shadow: 0 0 0 3px #0b1118, 0 20px 38px rgba(0, 0, 0, 0.55);
+    background: linear-gradient(180deg, #14202f 0%, #101925 100%);
+  }
+}
+
+.mathQuestionLabel {
+  margin: 0 0 10px;
+  color: #8fc4f0;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.76rem;
+}
+
+.mathQuestionText {
+  margin: 0 0 16px;
+  color: #d8f4ff;
+  text-shadow: 0 0 10px rgba(130, 219, 255, 0.2);
+  font-size: 1.9rem;
+  line-height: 1.05;
+  min-height: 2.1rem;
+}
+
+.mathAnswerRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+#mathAnswerInput {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  width: auto;
+  border: 2px solid #5c7ca0;
+  background: #070d14;
+  color: #eaf7ff;
 }
 
 input,

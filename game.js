@@ -4,6 +4,8 @@ const gamePanel = document.getElementById('gamePanel');
 const enterBtn = document.getElementById('enterBtn');
 const foodInput = document.getElementById('foodInput');
 const startBtn = document.getElementById('startBtn');
+const mathModeToggle = document.getElementById('mathModeToggle');
+const mathOpSelect = document.getElementById('mathOpSelect');
 const nextTurnBtn = document.getElementById('nextTurnBtn');
 const restartBtn = document.getElementById('restartBtn');
 
@@ -130,6 +132,12 @@ const readTabletBtn = document.getElementById('readTabletBtn');
 const log = document.getElementById('log');
 const logNoteInput = document.getElementById('logNoteInput');
 const logNoteBtn = document.getElementById('logNoteBtn');
+const mathQuestionPanel = document.getElementById('mathQuestionPanel');
+const mathQuestionLabel = document.getElementById('mathQuestionLabel');
+const mathQuestionText = document.getElementById('mathQuestionText');
+const mathAnswerInput = document.getElementById('mathAnswerInput');
+const mathSubmitBtn = document.getElementById('mathSubmitBtn');
+const mathConsole = mathQuestionPanel ? mathQuestionPanel.querySelector('.mathConsole') : null;
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -154,6 +162,8 @@ const COLONY_STORAGE_KEY = 'black-sand-colony-run-colony';
 const COLONIZE_DELAY_STORAGE_KEY = 'black-sand-colony-run-colonize-delay';
 const SONAR_WORM_BLOCKED_STORAGE_KEY = 'black-sand-colony-sonar-blocked-worm';
 const WORM_COMPLIMENT_COUNT_STORAGE_KEY = 'black-sand-colony-worm-compliment-count';
+const MATH_MODE_ENABLED_STORAGE_KEY = 'open-for-settlement-math-mode-enabled';
+const MATH_MODE_OPERATOR_STORAGE_KEY = 'open-for-settlement-math-mode-operator';
 
 const REGION_DATA = {
   forest: {
@@ -684,6 +694,91 @@ function playUiClickSound() {
   click.stop(now + 0.055);
 }
 
+function playMathTypeBeepSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+  const tone = ctx.createOscillator();
+  tone.type = 'square';
+  tone.frequency.setValueAtTime(980, now);
+  tone.frequency.exponentialRampToValueAtTime(700, now + 0.075);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.075, now + 0.004);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
+  tone.connect(gain);
+  gain.connect(audioState.master);
+  tone.start(now);
+  tone.stop(now + 0.095);
+}
+
+function playMathBackspaceBeepSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+  const tone = ctx.createOscillator();
+  tone.type = 'square';
+  tone.frequency.setValueAtTime(480, now);
+  tone.frequency.exponentialRampToValueAtTime(320, now + 0.08);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.045, now + 0.006);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
+  tone.connect(gain);
+  gain.connect(audioState.master);
+  tone.start(now);
+  tone.stop(now + 0.1);
+}
+
+function playMathCorrectDingSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+  const a = ctx.createOscillator();
+  const b = ctx.createOscillator();
+  a.type = 'triangle';
+  b.type = 'triangle';
+  a.frequency.setValueAtTime(880, now);
+  b.frequency.setValueAtTime(1180, now + 0.045);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.09, now + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+  a.connect(gain);
+  b.connect(gain);
+  gain.connect(audioState.master);
+  a.start(now);
+  b.start(now + 0.045);
+  a.stop(now + 0.18);
+  b.stop(now + 0.2);
+}
+
+function playMathWrongDongSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+  const tone = ctx.createOscillator();
+  tone.type = 'sine';
+  tone.frequency.setValueAtTime(220, now);
+  tone.frequency.exponentialRampToValueAtTime(132, now + 0.22);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.12, now + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.26);
+  tone.connect(gain);
+  gain.connect(audioState.master);
+  tone.start(now);
+  tone.stop(now + 0.28);
+}
+
 function playMudSplorgSound() {
   const ctx = ensureAudioContext();
   if (!ctx || !audioState.master) {
@@ -959,6 +1054,9 @@ const state = {
   skipStandardWinReward: false,
   sonarBlockedWormEver: false,
   wormComplimentCount: 0,
+  mathModeEnabled: false,
+  mathModeOperator: '+',
+  mathPromptResolve: null,
   hp: 100,
   maxHp: 100,
   turnsToWin: 0,
@@ -1058,6 +1156,7 @@ restartBtn.addEventListener('click', () => {
   state.tabletOpen = false;
   state.colonyMapOpen = false;
   state.marketOpen = false;
+  dismissMathQuestion(null);
   state.islandOpen = false;
   state.pendingPlacement = null;
   state.colonizeDelayTarget = loadColonizeDelay();
@@ -1106,6 +1205,44 @@ logNoteInput.addEventListener('keydown', (event) => {
     addPlayerLogNote();
   }
 });
+mathModeToggle.addEventListener('change', () => {
+  state.mathModeEnabled = mathModeToggle.checked;
+  storeMathModeSettings();
+  syncMathModeUi();
+});
+mathOpSelect.addEventListener('change', () => {
+  const op = mathOpSelect.value === '*' ? '*' : '+';
+  state.mathModeOperator = op;
+  storeMathModeSettings();
+  syncMathModeUi();
+});
+mathSubmitBtn.addEventListener('click', submitMathAnswer);
+mathAnswerInput.addEventListener('keydown', (event) => {
+  if (!event.metaKey && !event.ctrlKey && !event.altKey) {
+    if (event.key.length === 1) {
+      playMathTypeBeepSound();
+    } else if (event.key === 'Backspace') {
+      playMathBackspaceBeepSound();
+    }
+  }
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    submitMathAnswer();
+    return;
+  }
+  if (event.key === 'Escape' && state.mathPromptResolve) {
+    event.preventDefault();
+    mathAnswerInput.value = '';
+    submitMathAnswer();
+  }
+});
+mathQuestionPanel.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && state.mathPromptResolve) {
+    event.preventDefault();
+    mathAnswerInput.value = '';
+    submitMathAnswer();
+  }
+});
 window.addEventListener('keydown', handleCapitalMarketKeydown);
 document.addEventListener('click', (event) => {
   const button = event.target instanceof Element ? event.target.closest('button') : null;
@@ -1131,6 +1268,9 @@ function startGame() {
   state.investorOwned = loadStoredInvestor();
   state.sonarBlockedWormEver = loadSonarBlockedWormEver();
   state.wormComplimentCount = loadWormComplimentCount();
+  state.mathModeEnabled = mathModeToggle.checked;
+  state.mathModeOperator = mathOpSelect.value === '*' ? '*' : '+';
+  storeMathModeSettings();
   state.records = loadStoredRecords();
   state.lore = loadStoredTablets();
   state.skipStandardWinReward = false;
@@ -1209,26 +1349,38 @@ function showSetup() {
   state.marketOpen = false;
   state.islandOpen = false;
   state.pendingPlacement = null;
+  dismissMathQuestion(null);
   setupPanel.classList.remove('hidden');
   state.points = loadStoredPoints();
+  state.mathModeEnabled = loadStoredMathModeEnabled();
+  state.mathModeOperator = loadStoredMathModeOperator();
   state.colonizeDelayTarget = loadColonizeDelay();
   state.colony = loadStoredColony();
+  syncMathModeUi();
   syncRecordsUi();
   syncLoreUi();
   syncColonizeUi();
 }
 
-function advanceTurn() {
-  if (!state.running || state.gameOver || state.traderOpen || state.tabletOpen) {
+async function advanceTurn() {
+  if (!state.running || state.gameOver || state.traderOpen || state.tabletOpen || state.mathPromptResolve) {
     return;
   }
 
-  processTurn({ skipHazards: false, skipLabel: '' });
+  await processTurn({ skipHazards: false, skipLabel: '' });
 }
 
-function processTurn({ skipHazards, skipLabel = '' }) {
-  if (!state.running || state.gameOver || state.traderOpen || state.tabletOpen) {
+async function processTurn({ skipHazards, skipLabel = '' }) {
+  if (!state.running || state.gameOver || state.traderOpen || state.tabletOpen || state.mathPromptResolve) {
     return;
+  }
+  const upcomingTurn = state.turn + 1;
+  if (!skipHazards && state.mathModeEnabled && upcomingTurn % 2 === 0) {
+    const passed = await runMathCheck(`Run Turn ${upcomingTurn}`, 1);
+    if (!passed) {
+      addLog('Math check failed. Turn did not advance.', 'bad');
+      return;
+    }
   }
   unlockAudioContext();
 
@@ -1280,7 +1432,7 @@ function processTurn({ skipHazards, skipLabel = '' }) {
       if (state.gameOver) {
         break;
       }
-      processTurn({ skipHazards: true, skipLabel: autoSkipLabel });
+      await processTurn({ skipHazards: true, skipLabel: autoSkipLabel });
     }
   }
 }
@@ -1540,8 +1692,8 @@ function useSonar() {
   draw();
 }
 
-function useBouncer() {
-  if (!state.running || state.gameOver || state.traderOpen) {
+async function useBouncer() {
+  if (!state.running || state.gameOver || state.traderOpen || state.mathPromptResolve) {
     return;
   }
 
@@ -1567,7 +1719,7 @@ function useBouncer() {
     if (state.gameOver) {
       break;
     }
-    processTurn({ skipHazards: true, skipLabel: 'Bouncer field active: hazards skipped this turn.' });
+    await processTurn({ skipHazards: true, skipLabel: 'Bouncer field active: hazards skipped this turn.' });
   }
 
   syncInventoryUi();
@@ -4910,6 +5062,7 @@ function endGame(message, cause = '', options = {}) {
   state.running = false;
   state.traderOpen = false;
   state.tabletOpen = false;
+  dismissMathQuestion(null);
   nativeTraderPanel.classList.add('hidden');
   tabletPanel.classList.add('hidden');
   if (cause) {
@@ -5037,6 +5190,155 @@ function storeWormComplimentCount() {
   } catch {
     // Ignore storage failures and keep this session-only.
   }
+}
+
+function loadStoredMathModeEnabled() {
+  try {
+    return window.localStorage.getItem(MATH_MODE_ENABLED_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function loadStoredMathModeOperator() {
+  try {
+    const raw = window.localStorage.getItem(MATH_MODE_OPERATOR_STORAGE_KEY);
+    return raw === '*' ? '*' : '+';
+  } catch {
+    return '+';
+  }
+}
+
+function storeMathModeSettings() {
+  try {
+    window.localStorage.setItem(MATH_MODE_ENABLED_STORAGE_KEY, state.mathModeEnabled ? 'true' : 'false');
+    window.localStorage.setItem(MATH_MODE_OPERATOR_STORAGE_KEY, state.mathModeOperator === '*' ? '*' : '+');
+  } catch {
+    // Ignore storage failures and keep this session-only.
+  }
+}
+
+function syncMathModeUi() {
+  mathModeToggle.checked = state.mathModeEnabled;
+  mathOpSelect.value = state.mathModeOperator === '*' ? '*' : '+';
+  mathOpSelect.disabled = !state.mathModeEnabled;
+}
+
+function buildMathQuestion(harder = false) {
+  const useMultiply = state.mathModeOperator === '*';
+  if (useMultiply) {
+    const min = harder ? 3 : 1;
+    const max = harder ? 12 : 10;
+    const a = randInt(min, max);
+    const b = randInt(min, max);
+    return {
+      text: `${a} * ${b} = ?`,
+      answer: a * b,
+    };
+  }
+
+  const min = harder ? 5 : 1;
+  const max = harder ? 20 : 15;
+  const a = randInt(min, max);
+  const b = randInt(min, max);
+  return {
+    text: `${a} + ${b} = ?`,
+    answer: a + b,
+  };
+}
+
+function isMathAnswerCorrect(rawInput, expected) {
+  if (rawInput === null) {
+    return false;
+  }
+  const text = String(rawInput).trim().toLowerCase().replace(/\s+/g, '');
+  let parsed = Number(text);
+  if (!Number.isFinite(parsed)) {
+    const normalized = text.replace(/x/g, '*');
+    const match = normalized.match(/^(-?\d+)([+*])(-?\d+)$/);
+    if (!match) {
+      return false;
+    }
+    const left = Number(match[1]);
+    const op = match[2];
+    const right = Number(match[3]);
+    if (!Number.isFinite(left) || !Number.isFinite(right)) {
+      return false;
+    }
+    parsed = op === '+' ? (left + right) : (left * right);
+  }
+  return Math.round(parsed) === expected;
+}
+
+function openMathQuestion(label, text) {
+  return new Promise((resolve) => {
+    state.mathPromptResolve = resolve;
+    mathQuestionLabel.textContent = label;
+    mathQuestionText.textContent = text;
+    mathAnswerInput.value = '';
+    mathQuestionPanel.classList.remove('hidden');
+    window.setTimeout(() => {
+      mathAnswerInput.focus();
+      mathAnswerInput.select();
+    }, 0);
+  });
+}
+
+function dismissMathQuestion(answer = null) {
+  const resolve = state.mathPromptResolve;
+  state.mathPromptResolve = null;
+  mathQuestionPanel.classList.add('hidden');
+  if (resolve) {
+    resolve(answer);
+  }
+}
+
+function submitMathAnswer() {
+  if (!state.mathPromptResolve) {
+    return;
+  }
+  dismissMathQuestion(mathAnswerInput.value);
+}
+
+function triggerMathWrongFeedback() {
+  playMathWrongDongSound();
+  if (!mathConsole) {
+    return Promise.resolve();
+  }
+  mathConsole.classList.remove('alarmFlash');
+  // Force restart so quick consecutive wrong answers still flash.
+  void mathConsole.offsetWidth;
+  mathConsole.classList.add('alarmFlash');
+  return new Promise((resolve) => {
+    window.setTimeout(() => {
+      mathConsole.classList.remove('alarmFlash');
+      resolve();
+    }, 420);
+  });
+}
+
+async function runMathCheck(promptLabel = 'Turn Check', questionCount = 1) {
+  if (!state.mathModeEnabled) {
+    return true;
+  }
+  for (let i = 0; i < questionCount; i += 1) {
+    const basic = buildMathQuestion(false);
+    const first = await openMathQuestion(`Math Mode | ${promptLabel} | ${i + 1}/${questionCount}`, basic.text);
+    if (isMathAnswerCorrect(first, basic.answer)) {
+      playMathCorrectDingSound();
+      continue;
+    }
+    await triggerMathWrongFeedback();
+    const harder = buildMathQuestion(true);
+    const retry = await openMathQuestion('Retry (harder)', harder.text);
+    if (isMathAnswerCorrect(retry, harder.answer)) {
+      playMathCorrectDingSound();
+      continue;
+    }
+    await triggerMathWrongFeedback();
+    return false;
+  }
+  return true;
 }
 
 function loadStoredTablets() {
@@ -6382,6 +6684,8 @@ function getCrawlerPosition() {
 state.points = loadStoredPoints();
 state.maxHp = loadStoredMaxHp();
 state.investorOwned = loadStoredInvestor();
+state.mathModeEnabled = loadStoredMathModeEnabled();
+state.mathModeOperator = loadStoredMathModeOperator();
 state.records = loadStoredRecords();
 state.lore = loadStoredTablets();
 state.colonizeDelayTarget = loadColonizeDelay();
@@ -6399,4 +6703,5 @@ syncHud();
 syncRecordsUi();
 syncLoreUi();
 syncColonizeUi();
+syncMathModeUi();
 draw();

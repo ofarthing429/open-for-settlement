@@ -55,6 +55,19 @@
             <button id="manageColonyBtn" type="button" onclick="window.showColonyPanelFromUi && window.showColonyPanelFromUi()">Manage Colony</button>
           </div>
         </section>
+        <section id="mathModeDock" class="mathModeDock" aria-label="Math mode options">
+          <label class="mathToggleRow" for="mathModeToggle">
+            <input id="mathModeToggle" type="checkbox" />
+            <span>Math Mode</span>
+          </label>
+          <label class="mathOpRow" for="mathOpSelect">
+            <span>Mode:</span>
+            <select id="mathOpSelect">
+              <option value="+">Addition (+)</option>
+              <option value="*">Multiply (*)</option>
+            </select>
+          </label>
+        </section>
       </div>
     </section>
 
@@ -392,6 +405,17 @@
         <button id="skipMainlandCycleBtn">Skip Turn</button>
         <button id="closeIslandTakeoverBtn">Back To Colony</button>
       </footer>
+    </section>
+
+    <section id="mathQuestionPanel" class="mathQuestionPanel hidden" aria-live="polite">
+      <div class="mathConsole">
+        <p id="mathQuestionLabel" class="mathQuestionLabel">Math Mode</p>
+        <h2 id="mathQuestionText" class="mathQuestionText">0 + 0 = ?</h2>
+        <div class="mathAnswerRow">
+          <input id="mathAnswerInput" type="text" inputmode="numeric" autocomplete="off" placeholder="Type answer..." />
+          <button id="mathSubmitBtn" type="button">Submit</button>
+        </div>
+      </div>
     </section>
   </main>
 
