@@ -67,6 +67,7 @@ const colonyDefenseValue = document.getElementById('colonyDefenseValue');
 const colonyRegionFlavor = document.getElementById('colonyRegionFlavor');
 const colonyBuildViz = document.getElementById('colonyBuildViz');
 const advanceColonyBtn = document.getElementById('advanceColonyBtn');
+const restartColonyBtn = document.getElementById('restartColonyBtn');
 const openColonyMapBtn = document.getElementById('openColonyMapBtn');
 const openCapitalMarketBtn = document.getElementById('openCapitalMarketBtn');
 const openIslandTakeoverBtn = document.getElementById('openIslandTakeoverBtn');
@@ -1224,6 +1225,7 @@ colonizeNoBtn.addEventListener('click', delayColonizationPrompt);
 manageColonyBtn.addEventListener('click', showColonyPanel);
 cancelColonizeBtn.addEventListener('click', showSetup);
 advanceColonyBtn.addEventListener('click', advanceColonyCycle);
+restartColonyBtn.addEventListener('click', restartCurrentColony);
 openColonyMapBtn.addEventListener('click', openColonyTerritoryMap);
 openCapitalMarketBtn.addEventListener('click', openCapitalMarket);
 openIslandTakeoverBtn.addEventListener('click', openIslandTakeoverPanel);
@@ -2203,6 +2205,36 @@ function startColony(regionId) {
   showColonyPanel();
 }
 
+function restartCurrentColony() {
+  if (!state.colony || !state.colony.active || state.colony.stability > 0) {
+    return;
+  }
+
+  const old = state.colony;
+  const region = old.region;
+  const carriedSupport = Array.isArray(old.supportColonies) ? old.supportColonies : [];
+  const carriedMainland = old.mainland ? cloneColonyData(old.mainland) : createMainlandState();
+  const carriedTechBoost = Boolean(old.techBoost);
+
+  state.colony = createColonyState(region, {
+    supportColonies: carriedSupport,
+    mainland: carriedMainland,
+    techBoost: carriedTechBoost,
+    log: [
+      { text: `Emergency rebuild protocol engaged in ${REGION_DATA[region].name}. Colony restarted.`, tone: 'good' },
+      { text: REGION_DATA[region].summary, tone: '' },
+    ],
+  });
+  state.colony.supportColonies = dedupeSupportColonies(state.colony.supportColonies, region);
+  ensureIslandTakeoverUnlocked();
+  storeColony();
+  syncColonizeUi();
+  syncColonyUi();
+  if (state.colonyMapOpen) {
+    syncTerritoryMap();
+  }
+}
+
 function getRegionCoreTile(regionId) {
   const tile = REGION_TRAVEL_POINTS[regionId];
   if (tile) {
@@ -3039,6 +3071,7 @@ function syncColonyUi() {
   const region = REGION_DATA[state.colony.region];
   const caps = getColonyCaps();
   const defense = getColonyDefense(state.colony);
+  const colonyBroken = state.colony.stability <= 0;
   const regionSquareCount = REGION_MASKS[state.colony.region] ? REGION_MASKS[state.colony.region].size : 0;
   const regionFilled = isRegionFullyClaimed(state.colony);
 
@@ -3169,6 +3202,21 @@ function syncColonyUi() {
   buildGroundAnchorBtn.disabled = state.colony.supplies < anchorCost.supplies || state.colony.plutonium < anchorCost.plutonium;
   openCapitalMarketBtn.disabled = state.colony.region !== 'capital';
   openIslandTakeoverBtn.disabled = !state.colony.mainland || !state.colony.mainland.unlocked;
+  if (colonyBroken) {
+    advanceColonyBtn.disabled = true;
+    buildFarmBtn.disabled = true;
+    buildPowerPlantBtn.disabled = true;
+    buildMineBtn.disabled = true;
+    buildFactoryBtn.disabled = true;
+    buildBusinessHouseBtn.disabled = true;
+    buildStorageBtn.disabled = true;
+    buildBarracksBtn.disabled = true;
+    buildTroopBtn.disabled = true;
+    buildGroundAnchorBtn.disabled = true;
+    openCapitalMarketBtn.disabled = true;
+    openIslandTakeoverBtn.disabled = true;
+  }
+  restartColonyBtn.classList.toggle('hidden', !colonyBroken);
 }
 
 function syncColonyBuildViz() {
