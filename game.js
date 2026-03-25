@@ -6,6 +6,17 @@ const foodInput = document.getElementById('foodInput');
 const startBtn = document.getElementById('startBtn');
 const mathModeToggle = document.getElementById('mathModeToggle');
 const mathOpSelect = document.getElementById('mathOpSelect');
+const setupPointsValue = document.getElementById('setupPointsValue');
+const setupLoadoutRepair = document.getElementById('setupLoadoutRepair');
+const setupLoadoutSpray = document.getElementById('setupLoadoutSpray');
+const setupLoadoutBouncer = document.getElementById('setupLoadoutBouncer');
+const setupLoadoutSonar = document.getElementById('setupLoadoutSonar');
+const volumeSlider = document.getElementById('volumeSlider');
+const volumeValue = document.getElementById('volumeValue');
+const showTrackToggle = document.getElementById('showTrackToggle');
+const uiClickSoundToggle = document.getElementById('uiClickSoundToggle');
+const animationSpeedSlider = document.getElementById('animationSpeedSlider');
+const animationSpeedValue = document.getElementById('animationSpeedValue');
 const nextTurnBtn = document.getElementById('nextTurnBtn');
 const restartBtn = document.getElementById('restartBtn');
 
@@ -164,6 +175,11 @@ const SONAR_WORM_BLOCKED_STORAGE_KEY = 'black-sand-colony-sonar-blocked-worm';
 const WORM_COMPLIMENT_COUNT_STORAGE_KEY = 'black-sand-colony-worm-compliment-count';
 const MATH_MODE_ENABLED_STORAGE_KEY = 'open-for-settlement-math-mode-enabled';
 const MATH_MODE_OPERATOR_STORAGE_KEY = 'open-for-settlement-math-mode-operator';
+const LOADOUT_STORAGE_KEY = 'open-for-settlement-loadout';
+const VOLUME_STORAGE_KEY = 'open-for-settlement-volume';
+const SHOW_TRACK_STORAGE_KEY = 'open-for-settlement-show-track';
+const UI_CLICK_SOUND_STORAGE_KEY = 'open-for-settlement-ui-click-sound';
+const ANIMATION_SPEED_STORAGE_KEY = 'open-for-settlement-animation-speed';
 
 const REGION_DATA = {
   forest: {
@@ -247,7 +263,10 @@ function ensureAudioContext() {
   }
   const ctx = new AudioCtx();
   const master = ctx.createGain();
-  master.gain.value = 0.34;
+  const volume = typeof state !== 'undefined' && Number.isFinite(state.masterVolume)
+    ? Math.max(0, Math.min(100, state.masterVolume))
+    : 100;
+  master.gain.value = 0.34 * (volume / 100);
   master.connect(ctx.destination);
   audioState.ctx = ctx;
   audioState.master = master;
@@ -262,6 +281,14 @@ function unlockAudioContext() {
   if (ctx.state === 'suspended') {
     ctx.resume();
   }
+}
+
+function updateAudioMasterGain() {
+  if (!audioState.master) {
+    return;
+  }
+  const volume = Math.max(0, Math.min(100, state.masterVolume));
+  audioState.master.gain.value = 0.34 * (volume / 100);
 }
 
 function playCrawlerMoveSound(isJumpTurn) {
@@ -1056,6 +1083,10 @@ const state = {
   wormComplimentCount: 0,
   mathModeEnabled: false,
   mathModeOperator: '+',
+  masterVolume: 100,
+  showTrack: true,
+  uiClickSoundEnabled: true,
+  animationSpeed: 100,
   mathPromptResolve: null,
   hp: 100,
   maxHp: 100,
@@ -1086,7 +1117,13 @@ const state = {
   sonarArmed: false,
   pickaxeArmed: false,
   windmillArmed: false,
-  investorOwned: false,
+  loadoutBonus: {
+    repairKits: 0,
+    antiNibSpray: 0,
+    bouncer: 0,
+    sonarDisrupter: 0,
+  },
+  investorCount: 0,
   traderOffers: [],
   traderSellOffers: [],
   traderOpen: false,
@@ -1216,6 +1253,28 @@ mathOpSelect.addEventListener('change', () => {
   storeMathModeSettings();
   syncMathModeUi();
 });
+volumeSlider.addEventListener('input', () => {
+  const parsed = Number(volumeSlider.value);
+  state.masterVolume = Number.isFinite(parsed) ? Math.max(0, Math.min(100, Math.floor(parsed))) : 100;
+  updateAudioMasterGain();
+  storeSetupSettings();
+  syncSetupSettingsUi();
+});
+showTrackToggle.addEventListener('change', () => {
+  state.showTrack = showTrackToggle.checked;
+  storeSetupSettings();
+  draw();
+});
+uiClickSoundToggle.addEventListener('change', () => {
+  state.uiClickSoundEnabled = uiClickSoundToggle.checked;
+  storeSetupSettings();
+});
+animationSpeedSlider.addEventListener('input', () => {
+  const parsed = Number(animationSpeedSlider.value);
+  state.animationSpeed = Number.isFinite(parsed) ? Math.max(50, Math.min(200, Math.floor(parsed))) : 100;
+  storeSetupSettings();
+  syncSetupSettingsUi();
+});
 mathSubmitBtn.addEventListener('click', submitMathAnswer);
 mathAnswerInput.addEventListener('keydown', (event) => {
   if (!event.metaKey && !event.ctrlKey && !event.altKey) {
@@ -1249,7 +1308,9 @@ document.addEventListener('click', (event) => {
   if (!button || button.disabled) {
     return;
   }
-  playUiClickSound();
+  if (state.uiClickSoundEnabled) {
+    playUiClickSound();
+  }
 });
 
 function startGame() {
@@ -1265,7 +1326,7 @@ function startGame() {
   state.points = loadStoredPoints();
   state.runStartPoints = state.points;
   state.maxHp = loadStoredMaxHp();
-  state.investorOwned = loadStoredInvestor();
+  state.investorCount = loadStoredInvestorCount();
   state.sonarBlockedWormEver = loadSonarBlockedWormEver();
   state.wormComplimentCount = loadWormComplimentCount();
   state.mathModeEnabled = mathModeToggle.checked;
@@ -1286,12 +1347,13 @@ function startGame() {
   state.deathMode = '';
   state.lastDamageSource = '';
   state.runRecorded = false;
-  state.inventory.repairKits = 3;
-  state.inventory.antiNibSpray = 2;
-  state.inventory.sonarDisrupter = 0;
-  state.inventory.bouncer = 1;
+  state.inventory.repairKits = 3 + state.loadoutBonus.repairKits;
+  state.inventory.antiNibSpray = 2 + state.loadoutBonus.antiNibSpray;
+  state.inventory.sonarDisrupter = 0 + state.loadoutBonus.sonarDisrupter;
+  state.inventory.bouncer = 1 + state.loadoutBonus.bouncer;
   state.inventory.specialPickaxes = 0;
   state.inventory.windmills = 0;
+  clearLoadout();
   state.fakeInventory.repairKits = 0;
   state.fakeInventory.antiNibSpray = 0;
   state.fakeInventory.sonarDisrupter = 0;
@@ -1332,6 +1394,7 @@ function startGame() {
   syncInventoryUi();
   syncRecordsUi();
   syncLoreUi();
+  syncSetupShopUi();
   syncColonizeUi();
   draw();
 }
@@ -1354,9 +1417,18 @@ function showSetup() {
   state.points = loadStoredPoints();
   state.mathModeEnabled = loadStoredMathModeEnabled();
   state.mathModeOperator = loadStoredMathModeOperator();
+  const setupSettings = loadStoredSetupSettings();
+  state.masterVolume = setupSettings.volume;
+  state.showTrack = setupSettings.showTrack;
+  state.uiClickSoundEnabled = setupSettings.uiClickSoundEnabled;
+  state.animationSpeed = setupSettings.animationSpeed;
+  updateAudioMasterGain();
+  state.loadoutBonus = loadStoredLoadout();
   state.colonizeDelayTarget = loadColonizeDelay();
   state.colony = loadStoredColony();
   syncMathModeUi();
+  syncSetupSettingsUi();
+  syncSetupShopUi();
   syncRecordsUi();
   syncLoreUi();
   syncColonizeUi();
@@ -1418,7 +1490,7 @@ async function processTurn({ skipHazards, skipLabel = '' }) {
   resolveRoundState(false);
 
   if (!state.gameOver && !state.traderOpen) {
-    state.points += state.investorOwned ? 2 : 1;
+    state.points += 1 + state.investorCount;
     storePoints();
   }
 
@@ -1828,7 +1900,7 @@ function closeNativeTrader() {
   nativeTraderPanel.classList.add('hidden');
 
   if (!state.gameOver) {
-    state.points += state.investorOwned ? 2 : 1;
+    state.points += 1 + state.investorCount;
     storePoints();
     resolveRoundState(true);
     nextTurnBtn.disabled = false;
@@ -2391,11 +2463,11 @@ function getColonyThreatLevel(colony = state.colony) {
 function getStorePrice(kind) {
   const base = {
     repair: 15,
-    spray: 5,
+    spray: 15,
     bouncer: 30,
     maxHp: 50,
     sonar: 100,
-    investor: 75,
+    investor: 75 + (state.investorCount * 25),
   };
   const threatLevel = getColonyThreatLevel(state.colony);
   const multiplier = 1 + (threatLevel * 0.2);
@@ -4996,27 +5068,49 @@ function buyItem(kind) {
 
   state.points -= price;
 
+  const buyingFromSetup = !state.running;
   if (kind === 'repair') {
-    state.inventory.repairKits += 1;
+    if (buyingFromSetup) {
+      state.loadoutBonus.repairKits += 1;
+    } else {
+      state.inventory.repairKits += 1;
+    }
   } else if (kind === 'spray') {
-    state.inventory.antiNibSpray += 1;
+    if (buyingFromSetup) {
+      state.loadoutBonus.antiNibSpray += 1;
+    } else {
+      state.inventory.antiNibSpray += 1;
+    }
   } else if (kind === 'bouncer') {
-    state.inventory.bouncer += 1;
+    if (buyingFromSetup) {
+      state.loadoutBonus.bouncer += 1;
+    } else {
+      state.inventory.bouncer += 1;
+    }
   } else if (kind === 'maxHp') {
     state.maxHp += 10;
     state.hp += 10;
     storeMaxHp();
   } else if (kind === 'sonar') {
-    state.inventory.sonarDisrupter += 1;
+    if (buyingFromSetup) {
+      state.loadoutBonus.sonarDisrupter += 1;
+    } else {
+      state.inventory.sonarDisrupter += 1;
+    }
   } else if (kind === 'investor') {
-    state.investorOwned = true;
-    storeInvestor();
+    state.investorCount += 1;
+    storeInvestorCount();
   }
 
   storePoints();
-  addLog(`Bought ${labels[kind]} for ${price} points.`, 'good');
+  if (buyingFromSetup) {
+    storeLoadout();
+  } else {
+    addLog(`Bought ${labels[kind]} for ${price} points.`, 'good');
+  }
   syncHud();
   syncInventoryUi();
+  syncSetupShopUi();
 }
 
 function resolveRoundState(checkWin, options = {}) {
@@ -5096,6 +5190,7 @@ function syncHud() {
   } else {
     hpBarFill.style.background = 'linear-gradient(180deg, #ff9d66 0%, #d44f4f 55%, #8e2434 100%)';
   }
+  syncSetupShopUi();
 }
 
 function loadStoredPoints() {
@@ -5140,17 +5235,25 @@ function storeMaxHp() {
   }
 }
 
-function loadStoredInvestor() {
+function loadStoredInvestorCount() {
   try {
-    return window.localStorage.getItem(INVESTOR_STORAGE_KEY) === 'true';
+    const raw = window.localStorage.getItem(INVESTOR_STORAGE_KEY);
+    if (raw === 'true') {
+      return 1;
+    }
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return 0;
+    }
+    return Math.floor(parsed);
   } catch {
-    return false;
+    return 0;
   }
 }
 
-function storeInvestor() {
+function storeInvestorCount() {
   try {
-    window.localStorage.setItem(INVESTOR_STORAGE_KEY, String(state.investorOwned));
+    window.localStorage.setItem(INVESTOR_STORAGE_KEY, String(state.investorCount));
   } catch {
     // Ignore storage failures and keep investor state in memory for the session.
   }
@@ -5222,6 +5325,98 @@ function syncMathModeUi() {
   mathModeToggle.checked = state.mathModeEnabled;
   mathOpSelect.value = state.mathModeOperator === '*' ? '*' : '+';
   mathOpSelect.disabled = !state.mathModeEnabled;
+}
+
+function loadStoredSetupSettings() {
+  try {
+    const volumeRaw = Number(window.localStorage.getItem(VOLUME_STORAGE_KEY));
+    const showTrackRaw = window.localStorage.getItem(SHOW_TRACK_STORAGE_KEY);
+    const uiClickRaw = window.localStorage.getItem(UI_CLICK_SOUND_STORAGE_KEY);
+    const animRaw = Number(window.localStorage.getItem(ANIMATION_SPEED_STORAGE_KEY));
+    return {
+      volume: Number.isFinite(volumeRaw) ? Math.max(0, Math.min(100, Math.floor(volumeRaw))) : 100,
+      showTrack: showTrackRaw !== 'false',
+      uiClickSoundEnabled: uiClickRaw !== 'false',
+      animationSpeed: Number.isFinite(animRaw) ? Math.max(50, Math.min(200, Math.floor(animRaw))) : 100,
+    };
+  } catch {
+    return {
+      volume: 100,
+      showTrack: true,
+      uiClickSoundEnabled: true,
+      animationSpeed: 100,
+    };
+  }
+}
+
+function storeSetupSettings() {
+  try {
+    window.localStorage.setItem(VOLUME_STORAGE_KEY, String(state.masterVolume));
+    window.localStorage.setItem(SHOW_TRACK_STORAGE_KEY, state.showTrack ? 'true' : 'false');
+    window.localStorage.setItem(UI_CLICK_SOUND_STORAGE_KEY, state.uiClickSoundEnabled ? 'true' : 'false');
+    window.localStorage.setItem(ANIMATION_SPEED_STORAGE_KEY, String(state.animationSpeed));
+  } catch {
+    // Ignore storage failures and keep this session-only.
+  }
+}
+
+function normalizeLoadout(raw) {
+  const source = raw && typeof raw === 'object' ? raw : {};
+  return {
+    repairKits: Number.isFinite(source.repairKits) ? Math.max(0, Math.floor(source.repairKits)) : 0,
+    antiNibSpray: Number.isFinite(source.antiNibSpray) ? Math.max(0, Math.floor(source.antiNibSpray)) : 0,
+    bouncer: Number.isFinite(source.bouncer) ? Math.max(0, Math.floor(source.bouncer)) : 0,
+    sonarDisrupter: Number.isFinite(source.sonarDisrupter) ? Math.max(0, Math.floor(source.sonarDisrupter)) : 0,
+  };
+}
+
+function loadStoredLoadout() {
+  try {
+    const raw = window.localStorage.getItem(LOADOUT_STORAGE_KEY);
+    if (!raw) {
+      return normalizeLoadout({});
+    }
+    return normalizeLoadout(JSON.parse(raw));
+  } catch {
+    return normalizeLoadout({});
+  }
+}
+
+function storeLoadout() {
+  try {
+    window.localStorage.setItem(LOADOUT_STORAGE_KEY, JSON.stringify(state.loadoutBonus));
+  } catch {
+    // Ignore storage failures and keep this session-only.
+  }
+}
+
+function clearLoadout() {
+  state.loadoutBonus = normalizeLoadout({});
+  storeLoadout();
+}
+
+function syncSetupSettingsUi() {
+  volumeSlider.value = String(state.masterVolume);
+  volumeValue.textContent = `${state.masterVolume}%`;
+  showTrackToggle.checked = state.showTrack;
+  uiClickSoundToggle.checked = state.uiClickSoundEnabled;
+  animationSpeedSlider.value = String(state.animationSpeed);
+  animationSpeedValue.textContent = `${state.animationSpeed}%`;
+}
+
+function syncSetupShopUi() {
+  setupPointsValue.textContent = String(state.points);
+  setupLoadoutRepair.textContent = String(3 + state.loadoutBonus.repairKits);
+  setupLoadoutSpray.textContent = String(2 + state.loadoutBonus.antiNibSpray);
+  setupLoadoutBouncer.textContent = String(1 + state.loadoutBonus.bouncer);
+  setupLoadoutSonar.textContent = String(state.loadoutBonus.sonarDisrupter);
+  buyInvestorBtn.textContent = `Investor (${getStorePrice('investor')})`;
+  buyRepairBtn.disabled = state.points < getStorePrice('repair');
+  buySprayBtn.disabled = state.points < getStorePrice('spray');
+  buyBouncerBtn.disabled = state.points < getStorePrice('bouncer');
+  buyHpBtn.disabled = state.points < getStorePrice('maxHp');
+  buySonarBtn.disabled = state.points < getStorePrice('sonar');
+  buyInvestorBtn.disabled = state.points < getStorePrice('investor');
 }
 
 function buildMathQuestion(harder = false) {
@@ -5502,7 +5697,7 @@ function syncInventoryUi() {
   buyBouncerBtn.disabled = state.traderOpen || state.points < getStorePrice('bouncer');
   buyHpBtn.disabled = state.traderOpen || state.points < getStorePrice('maxHp');
   buySonarBtn.disabled = state.traderOpen || state.points < getStorePrice('sonar');
-  buyInvestorBtn.disabled = state.traderOpen || state.points < getStorePrice('investor') || state.investorOwned;
+  buyInvestorBtn.disabled = state.traderOpen || state.points < getStorePrice('investor');
   logNoteInput.disabled = inactive;
   logNoteBtn.disabled = inactive;
   if (state.lore.terrarex !== true && state.lore.mystic !== true) {
@@ -5595,15 +5790,18 @@ function pickEvent() {
 
 function draw() {
   drawBackground();
-  drawTrack();
+  if (state.showTrack) {
+    drawTrack();
+  }
   drawDecor();
   drawCrawler();
   drawEventAnimation();
   drawStatusStrip();
 
   if (state.eventAnim) {
-    state.eventAnim.tick += 0.5;
-    state.eventAnim.frames -= 1;
+    const animMult = Math.max(0.5, Math.min(2, (state.animationSpeed || 100) / 100));
+    state.eventAnim.tick += 0.5 * animMult;
+    state.eventAnim.frames -= animMult;
     if (state.eventAnim.frames <= 0) {
       state.eventAnim = null;
     }
@@ -6683,9 +6881,15 @@ function getCrawlerPosition() {
 
 state.points = loadStoredPoints();
 state.maxHp = loadStoredMaxHp();
-state.investorOwned = loadStoredInvestor();
+state.investorCount = loadStoredInvestorCount();
 state.mathModeEnabled = loadStoredMathModeEnabled();
 state.mathModeOperator = loadStoredMathModeOperator();
+const setupSettings = loadStoredSetupSettings();
+state.masterVolume = setupSettings.volume;
+state.showTrack = setupSettings.showTrack;
+state.uiClickSoundEnabled = setupSettings.uiClickSoundEnabled;
+state.animationSpeed = setupSettings.animationSpeed;
+state.loadoutBonus = loadStoredLoadout();
 state.records = loadStoredRecords();
 state.lore = loadStoredTablets();
 state.colonizeDelayTarget = loadColonizeDelay();
@@ -6704,4 +6908,6 @@ syncRecordsUi();
 syncLoreUi();
 syncColonizeUi();
 syncMathModeUi();
+syncSetupSettingsUi();
+syncSetupShopUi();
 draw();

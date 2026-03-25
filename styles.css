@@ -53,7 +53,7 @@ body {
 }
 
 .setupOverlay {
-  width: min(420px, 100%);
+  width: min(980px, 100%);
   padding: 20px 18px;
   background: linear-gradient(180deg, rgba(20, 25, 37, 0.92) 0%, rgba(12, 16, 24, 0.95) 100%);
   border: 2px solid rgba(116, 123, 144, 0.8);
@@ -65,6 +65,21 @@ body {
   margin-left: 0;
   position: relative;
   padding-bottom: 86px;
+}
+
+.setupColumns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 16px;
+  align-items: start;
+}
+
+.setupSide .recordsPanel {
+  margin-top: 0;
+}
+
+.setupSide .recordsPanel + .recordsPanel {
+  margin-top: 12px;
 }
 
 .titleClicker {
@@ -142,6 +157,39 @@ body {
   gap: 6px 12px;
   color: #d6d0bf;
   font-size: 0.92rem;
+}
+
+.setupLoadoutGrid {
+  margin-bottom: 8px;
+}
+
+.setupShopGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.settingsRow {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+  color: #d8d3c4;
+}
+
+.settingsRow input[type="checkbox"] {
+  margin: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.settingsRow input[type="range"] {
+  width: 140px;
+  margin: 0;
+  display: block;
+  accent-color: #a68a47;
 }
 
 .mathModeDock {
@@ -1286,6 +1334,11 @@ canvas {
   .setupOverlay {
     width: 100%;
     padding: 16px 14px;
+  }
+
+  .setupColumns {
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
 
   .gameLayout {

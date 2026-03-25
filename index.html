@@ -17,44 +17,89 @@
 
     <section id="setupPanel" class="panel hidden">
       <div class="setupOverlay setupCard">
-        <p class="setupKicker">Kharox: Earth's best idea, on the worst possible planet.</p>
-        <h1>Mission Setup</h1>
-        <p class="setupIntro">
-          Pilot your mini-skyscraper crawler across Kharox. Food keeps you moving,
-          hazards hit hard, and the wildlife is not interested in sharing.
-        </p>
-        <label for="foodInput">Starting Food (20 - 300)</label>
-        <input id="foodInput" type="number" min="20" max="300" step="10" value="120" />
-        <button id="startBtn">Start Mission</button>
-        <a href="./trailer.html" target="_blank" rel="noopener" class="trailerLink">Watch Trailer</a>
-        <ul class="hazardList">
-          <li>Bad Weather: <strong>-10 HP</strong></li>
-          <li>Sinking Sand: <strong>-20 HP</strong></li>
-          <li>Glowing Green Coral: <strong>-25 HP</strong></li>
-          <li>Nibblorax Bug: <strong>-15 to -150 Food</strong></li>
-          <li>Wreckage Cache: <strong>+25 HP</strong></li>
-          <li>Glowcore Orchard: <strong>+50 Food</strong></li>
-          <li>Plutonium Deposit: <strong>skip 3 turns safely</strong></li>
-          <li>The Worm: <strong>Instant defeat</strong></li>
-        </ul>
-        <section class="recordsPanel">
-          <h2>Colony Records</h2>
-          <div class="recordsGrid">
-            <div>Runs: <span id="recordRuns">0</span></div>
-            <div>Wins: <span id="recordWins">0</span></div>
-            <div>Best Points: <span id="recordBestPoints">0</span></div>
-            <div>Longest Run: <span id="recordBestTurns">0</span></div>
+        <div class="setupColumns">
+          <div class="setupPrimary">
+            <p class="setupKicker">Kharox: Earth's best idea, on the worst possible planet.</p>
+            <h1>Mission Setup</h1>
+            <p class="setupIntro">
+              Pilot your mini-skyscraper crawler across Kharox. Food keeps you moving,
+              hazards hit hard, and the wildlife is not interested in sharing.
+            </p>
+            <label for="foodInput">Starting Food (20 - 300)</label>
+            <input id="foodInput" type="number" min="20" max="300" step="10" value="120" />
+            <button id="startBtn">Start Mission</button>
+            <a href="./trailer.html" target="_blank" rel="noopener" class="trailerLink">Watch Trailer</a>
+            <ul class="hazardList">
+              <li>Bad Weather: <strong>-10 HP</strong></li>
+              <li>Sinking Sand: <strong>-20 HP</strong></li>
+              <li>Glowing Green Coral: <strong>-25 HP</strong></li>
+              <li>Nibblorax Bug: <strong>-15 to -150 Food</strong></li>
+              <li>Wreckage Cache: <strong>+25 HP</strong></li>
+              <li>Glowcore Orchard: <strong>+50 Food</strong></li>
+              <li>Plutonium Deposit: <strong>skip 3 turns safely</strong></li>
+              <li>The Worm: <strong>Instant defeat</strong></li>
+            </ul>
+            <section class="recordsPanel">
+              <h2>Colony Records</h2>
+              <div class="recordsGrid">
+                <div>Runs: <span id="recordRuns">0</span></div>
+                <div>Wins: <span id="recordWins">0</span></div>
+                <div>Best Points: <span id="recordBestPoints">0</span></div>
+                <div>Longest Run: <span id="recordBestTurns">0</span></div>
+              </div>
+            </section>
+            <section id="colonizePrompt" class="recordsPanel">
+              <h2>Colonization</h2>
+              <p id="colonizeText" class="setupIntro"></p>
+              <div class="controls colonizeControls">
+                <button id="colonizeYesBtn" type="button" onclick="window.openColonyMapFromUi && window.openColonyMapFromUi()">Yes, Colonize</button>
+                <button id="colonizeNoBtn" type="button" onclick="window.delayColonizationFromUi && window.delayColonizationFromUi()">Wait</button>
+                <button id="manageColonyBtn" type="button" onclick="window.showColonyPanelFromUi && window.showColonyPanelFromUi()">Manage Colony</button>
+              </div>
+            </section>
           </div>
-        </section>
-        <section id="colonizePrompt" class="recordsPanel">
-          <h2>Colonization</h2>
-          <p id="colonizeText" class="setupIntro"></p>
-          <div class="controls colonizeControls">
-            <button id="colonizeYesBtn" type="button" onclick="window.openColonyMapFromUi && window.openColonyMapFromUi()">Yes, Colonize</button>
-            <button id="colonizeNoBtn" type="button" onclick="window.delayColonizationFromUi && window.delayColonizationFromUi()">Wait</button>
-            <button id="manageColonyBtn" type="button" onclick="window.showColonyPanelFromUi && window.showColonyPanelFromUi()">Manage Colony</button>
+          <div class="setupSide">
+            <section class="recordsPanel">
+              <h2>Mission Shop</h2>
+              <div class="subState">Points: <span id="setupPointsValue">0</span></div>
+              <div class="recordsGrid setupLoadoutGrid">
+                <div>Next Start Repair: <span id="setupLoadoutRepair">3</span></div>
+                <div>Next Start Spray: <span id="setupLoadoutSpray">2</span></div>
+                <div>Next Start Bouncer: <span id="setupLoadoutBouncer">1</span></div>
+                <div>Next Start Sonar: <span id="setupLoadoutSonar">0</span></div>
+              </div>
+              <div class="setupShopGrid">
+                <button id="buyRepairBtn">Repair Kit (15)</button>
+                <button id="buySprayBtn">Anti-Nib Spray (15)</button>
+                <button id="buyBouncerBtn">Bouncer (30)</button>
+                <button id="buyHpBtn">Max HP +10 (50)</button>
+                <button id="buySonarBtn">Sonar Disrupter (100)</button>
+                <button id="buyInvestorBtn">Investor (75)</button>
+              </div>
+            </section>
+            <section class="recordsPanel">
+              <h2>Settings</h2>
+              <label class="settingsRow" for="volumeSlider">
+                <span>Volume</span>
+                <input id="volumeSlider" type="range" min="0" max="100" step="1" value="100" />
+                <span id="volumeValue">100%</span>
+              </label>
+              <label class="settingsRow" for="showTrackToggle">
+                <span>Show Track Bar</span>
+                <input id="showTrackToggle" type="checkbox" checked />
+              </label>
+              <label class="settingsRow" for="uiClickSoundToggle">
+                <span>UI Click Sound</span>
+                <input id="uiClickSoundToggle" type="checkbox" checked />
+              </label>
+              <label class="settingsRow" for="animationSpeedSlider">
+                <span>Animation Speed</span>
+                <input id="animationSpeedSlider" type="range" min="50" max="200" step="5" value="100" />
+                <span id="animationSpeedValue">100%</span>
+              </label>
+            </section>
           </div>
-        </section>
+        </div>
         <section id="mathModeDock" class="mathModeDock" aria-label="Math mode options">
           <label class="mathToggleRow" for="mathModeToggle">
             <input id="mathModeToggle" type="checkbox" />
@@ -147,37 +192,6 @@
           </div>
           <p class="inventoryNote">Wreckage can contain repair kits or spray, never bouncers.</p>
 
-          <h2>Store</h2>
-          <div class="inventoryItem">
-            <div>Repair Kit</div>
-            <div class="subState">Cost: 15 points</div>
-            <button id="buyRepairBtn">Buy Repair Kit</button>
-          </div>
-          <div class="inventoryItem">
-            <div>Anti-Nib Spray</div>
-            <div class="subState">Cost: 5 points</div>
-            <button id="buySprayBtn">Buy Anti-Nib Spray</button>
-          </div>
-          <div class="inventoryItem">
-            <div>Bouncer</div>
-            <div class="subState">Cost: 30 points</div>
-            <button id="buyBouncerBtn">Buy Bouncer</button>
-          </div>
-          <div class="inventoryItem">
-            <div>Max HP +10</div>
-            <div class="subState">Cost: 50 points</div>
-            <button id="buyHpBtn">Buy Max HP</button>
-          </div>
-          <div class="inventoryItem">
-            <div>Sonar Disrupter</div>
-            <div class="subState">Cost: 100 points</div>
-            <button id="buySonarBtn">Buy Sonar Disrupter</button>
-          </div>
-          <div class="inventoryItem">
-            <div>Investor</div>
-            <div class="subState">Cost: 75 points, doubles points per turn</div>
-            <button id="buyInvestorBtn">Buy Investor</button>
-          </div>
         </aside>
       </div>
 
