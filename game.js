@@ -3191,6 +3191,7 @@ function syncColonyUi() {
   const troopCost = getBuildingCost('troops', state.colony);
   const anchorCost = getBuildingCost('groundAnchors', state.colony);
 
+  advanceColonyBtn.disabled = false;
   buildFarmBtn.disabled = state.colony.supplies < farmCost.supplies || state.colony.plutonium < farmCost.plutonium;
   buildPowerPlantBtn.disabled = state.colony.supplies < powerPlantCost.supplies || state.colony.plutonium < powerPlantCost.plutonium;
   buildMineBtn.disabled = state.colony.buildings.mines >= MINE_CAP || state.colony.supplies < mineCost.supplies || state.colony.plutonium < mineCost.plutonium;
@@ -4531,6 +4532,11 @@ function resolveHiveInfestations(cycleIssues) {
 
 function advanceColonyCycle() {
   if (!state.colony || !state.colony.active) {
+    return;
+  }
+  if (state.colony.stability <= 0) {
+    addColonyLog('Stability is at 0%. Restart colony to continue.', 'bad');
+    syncColonyUi();
     return;
   }
 
