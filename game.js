@@ -7121,6 +7121,10 @@ function updateMountainFlySwarm(data, player) {
   }
 
   let activeCount = 0;
+  const minX = Math.max(40, player.x - 520);
+  const maxX = Math.min(data.courseLength - 40, player.x + 520);
+  const minY = 72;
+  const maxY = mountainCanvas.height - 120;
   for (const fly of swarm.flies) {
     if (!fly.active) {
       continue;
@@ -7132,10 +7136,18 @@ function updateMountainFlySwarm(data, player) {
     const dx = player.x - fly.x;
     const dy = (player.y - 26) - fly.y;
     const dist = Math.hypot(dx, dy) || 1;
-    fly.vx = (fly.vx * 0.78) + ((dx / dist) * 2.5 * 0.22);
-    fly.vy = (fly.vy * 0.78) + ((dy / dist) * 2.5 * 0.22);
+    fly.vx = (fly.vx * 0.68) + ((dx / dist) * 3.8 * 0.32);
+    fly.vy = (fly.vy * 0.68) + ((dy / dist) * 3.8 * 0.32);
     fly.x += fly.vx;
     fly.y += fly.vy;
+    if (fly.x < minX || fly.x > maxX) {
+      fly.x = Math.max(minX, Math.min(maxX, fly.x));
+      fly.vx *= -0.45;
+    }
+    if (fly.y < minY || fly.y > maxY) {
+      fly.y = Math.max(minY, Math.min(maxY, fly.y));
+      fly.vy *= -0.45;
+    }
     if (Math.abs(fly.x - player.x) < 26 && Math.abs(fly.y - (player.y - 24)) < 28 && fly.cooldown <= 0) {
       fly.active = false;
       state.hp = Math.max(0, state.hp - 5);
