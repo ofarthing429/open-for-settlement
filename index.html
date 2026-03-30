@@ -97,6 +97,14 @@
                 <input id="animationSpeedSlider" type="range" min="50" max="200" step="5" value="100" />
                 <span id="animationSpeedValue">100%</span>
               </label>
+              <div class="practicePanel">
+                <div class="practiceTitle">Simulation Practice</div>
+                <div class="practiceButtons">
+                  <button id="practiceHerdBtn" type="button">Practice Herd</button>
+                  <button id="practiceMountainBtn" type="button">Practice Mountain</button>
+                </div>
+                <div id="practiceStatus" class="subState">Launch a minigame without risking a real mission.</div>
+              </div>
             </section>
           </div>
         </div>
@@ -120,16 +128,29 @@
       <header class="hud">
         <div class="leftHud">
           <div>Turn: <span id="turnValue">0</span></div>
-          <div>Food: <span id="foodValue">0</span></div>
           <div>Points: <span id="pointsValue">0</span></div>
           <div>Mission Target: <span id="targetValue">0</span></div>
         </div>
         <div class="rightHud">
-          <span class="hpLabel">HP</span>
-          <div class="hpBar">
-            <div id="hpBarFill" class="hpBarFill"></div>
+          <div class="hudMeterStack">
+            <div class="hudMeterRow">
+              <span class="hpLabel">HP</span>
+              <div class="hpBar">
+                <div id="hpBarFill" class="hpBarFill"></div>
+              </div>
+              <span id="hpValue">100</span>
+            </div>
+            <div class="hudMeterRow">
+              <span class="hpLabel">Food</span>
+              <div class="foodMeter">
+                <div class="foodMeterTrack">
+                  <div id="foodBarFill" class="foodBarFill"></div>
+                </div>
+                <div class="foodMeterBone" aria-hidden="true"></div>
+              </div>
+              <span id="foodValue">0</span>
+            </div>
           </div>
-          <span id="hpValue">100</span>
         </div>
       </header>
 
@@ -430,6 +451,28 @@
           <input id="mathAnswerInput" type="text" inputmode="numeric" autocomplete="off" placeholder="Type answer..." />
           <button id="mathSubmitBtn" type="button">Submit</button>
         </div>
+      </div>
+    </section>
+
+    <section id="encounterPanel" class="encounterPanel hidden" aria-live="polite">
+      <canvas id="encounterCanvas" width="1280" height="720"></canvas>
+      <div id="encounterIntro" class="encounterIntro">
+        <h2>Alien Herd Contact</h2>
+        <p id="encounterIntroText">Nibblorax herd detected. Musca swarm signatures possible.</p>
+        <p>Click to fire laser. Survive and collect black drumsticks.</p>
+        <button id="encounterStartBtn" type="button">Start Encounter</button>
+      </div>
+    </section>
+
+    <section id="mountainPanel" class="encounterPanel hidden" aria-live="polite">
+      <canvas id="mountainCanvas" width="1280" height="720"></canvas>
+      <button id="mountainSwarmDebugBtn" class="mountainDebugBtn hidden" type="button">Debug Swarm</button>
+      <div id="mountainIntro" class="encounterIntro">
+        <h2>Mountain Pass</h2>
+        <p id="mountainIntroText">A broken mountain road rises ahead. Drive the crawler across by hand.</p>
+        <p>Use A/D or arrow keys to drive. Press W, Up, or Space to jump.</p>
+        <p>If the skyscraper body hits the ground instead of the treads, it explodes for 50 HP and the pass restarts.</p>
+        <button id="mountainStartBtn" type="button">Start Crossing</button>
       </div>
     </section>
   </main>

@@ -17,6 +17,9 @@ const showTrackToggle = document.getElementById('showTrackToggle');
 const uiClickSoundToggle = document.getElementById('uiClickSoundToggle');
 const animationSpeedSlider = document.getElementById('animationSpeedSlider');
 const animationSpeedValue = document.getElementById('animationSpeedValue');
+const practiceHerdBtn = document.getElementById('practiceHerdBtn');
+const practiceMountainBtn = document.getElementById('practiceMountainBtn');
+const practiceStatus = document.getElementById('practiceStatus');
 const nextTurnBtn = document.getElementById('nextTurnBtn');
 const restartBtn = document.getElementById('restartBtn');
 
@@ -124,6 +127,7 @@ const pointsValue = document.getElementById('pointsValue');
 const targetValue = document.getElementById('targetValue');
 const hpValue = document.getElementById('hpValue');
 const hpBarFill = document.getElementById('hpBarFill');
+const foodBarFill = document.getElementById('foodBarFill');
 const recordRuns = document.getElementById('recordRuns');
 const recordWins = document.getElementById('recordWins');
 const recordBestPoints = document.getElementById('recordBestPoints');
@@ -150,6 +154,21 @@ const mathQuestionText = document.getElementById('mathQuestionText');
 const mathAnswerInput = document.getElementById('mathAnswerInput');
 const mathSubmitBtn = document.getElementById('mathSubmitBtn');
 const mathConsole = mathQuestionPanel ? mathQuestionPanel.querySelector('.mathConsole') : null;
+const encounterPanel = document.getElementById('encounterPanel');
+const encounterCanvas = document.getElementById('encounterCanvas');
+const encounterIntro = document.getElementById('encounterIntro');
+const encounterIntroText = document.getElementById('encounterIntroText');
+const encounterStartBtn = document.getElementById('encounterStartBtn');
+const encounterCtx = encounterCanvas.getContext('2d');
+encounterCtx.imageSmoothingEnabled = false;
+const mountainPanel = document.getElementById('mountainPanel');
+const mountainCanvas = document.getElementById('mountainCanvas');
+const mountainIntro = document.getElementById('mountainIntro');
+const mountainIntroText = document.getElementById('mountainIntroText');
+const mountainStartBtn = document.getElementById('mountainStartBtn');
+const mountainSwarmDebugBtn = document.getElementById('mountainSwarmDebugBtn');
+const mountainCtx = mountainCanvas.getContext('2d');
+mountainCtx.imageSmoothingEnabled = false;
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -434,6 +453,40 @@ function playJumpWhooshSound() {
   noise.stop(now + 0.3);
 }
 
+function playFlyBuzzSound(angry = false) {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+  const duration = angry ? 0.36 : 0.24;
+
+  const buzz = ctx.createOscillator();
+  buzz.type = 'sawtooth';
+  buzz.frequency.setValueAtTime(angry ? 210 : 178, now);
+  buzz.frequency.exponentialRampToValueAtTime(angry ? 258 : 202, now + duration * 0.5);
+  buzz.frequency.exponentialRampToValueAtTime(angry ? 224 : 184, now + duration);
+
+  const wing = ctx.createOscillator();
+  wing.type = 'square';
+  wing.frequency.setValueAtTime(angry ? 92 : 74, now);
+  wing.frequency.exponentialRampToValueAtTime(angry ? 118 : 88, now + duration);
+
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(angry ? 0.06 : 0.04, now + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+  buzz.connect(gain);
+  wing.connect(gain);
+  gain.connect(audioState.master);
+
+  buzz.start(now);
+  wing.start(now);
+  buzz.stop(now + duration + 0.01);
+  wing.stop(now + duration + 0.01);
+}
+
 function playWormRoarSound() {
   const ctx = ensureAudioContext();
   if (!ctx || !audioState.master) {
@@ -653,25 +706,95 @@ function playSinkSound() {
     return;
   }
   const now = ctx.currentTime;
-  const gurgle = ctx.createOscillator();
-  gurgle.type = 'sine';
-  gurgle.frequency.setValueAtTime(130, now);
-  gurgle.frequency.exponentialRampToValueAtTime(70, now + 0.22);
-  const grit = ctx.createOscillator();
-  grit.type = 'triangle';
-  grit.frequency.setValueAtTime(240, now);
-  grit.frequency.exponentialRampToValueAtTime(110, now + 0.24);
+  const noiseBuffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.32), ctx.sampleRate);
+  const data = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < data.length; i += 1) {
+    data[i] = (Math.random() * 2 - 1) * 0.9;
+  }
+  const mud = ctx.createBufferSource();
+  mud.buffer = noiseBuffer;
+  const mudFilter = ctx.createBiquadFilter();
+  mudFilter.type = 'lowpass';
+  mudFilter.frequency.setValueAtTime(480, now);
+  mudFilter.frequency.exponentialRampToValueAtTime(180, now + 0.24);
+  const plop = ctx.createOscillator();
+  plop.type = 'triangle';
+  plop.frequency.setValueAtTime(170, now);
+  plop.frequency.exponentialRampToValueAtTime(62, now + 0.22);
   const gain = ctx.createGain();
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.linearRampToValueAtTime(0.08, now + 0.02);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
-  gurgle.connect(gain);
-  grit.connect(gain);
+  gain.gain.linearRampToValueAtTime(0.1, now + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
+  mud.connect(mudFilter);
+  mudFilter.connect(gain);
+  plop.connect(gain);
   gain.connect(audioState.master);
-  gurgle.start(now);
-  grit.start(now);
-  gurgle.stop(now + 0.3);
-  grit.stop(now + 0.3);
+  mud.start(now);
+  plop.start(now);
+  mud.stop(now + 0.32);
+  plop.stop(now + 0.3);
+}
+
+function playMorspulexGrowlSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+  const growl = ctx.createOscillator();
+  growl.type = 'sawtooth';
+  growl.frequency.setValueAtTime(92, now);
+  growl.frequency.exponentialRampToValueAtTime(64, now + 0.2);
+  const sub = ctx.createOscillator();
+  sub.type = 'triangle';
+  sub.frequency.setValueAtTime(46, now);
+  sub.frequency.exponentialRampToValueAtTime(34, now + 0.22);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.09, now + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
+  growl.connect(gain);
+  sub.connect(gain);
+  gain.connect(audioState.master);
+  growl.start(now);
+  sub.start(now);
+  growl.stop(now + 0.3);
+  sub.stop(now + 0.3);
+}
+
+function playFlyHitSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioState.master) {
+    return;
+  }
+  const now = ctx.currentTime;
+  const clang = ctx.createOscillator();
+  clang.type = 'triangle';
+  clang.frequency.setValueAtTime(620, now);
+  clang.frequency.exponentialRampToValueAtTime(260, now + 0.12);
+  const scrapeNoise = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.18), ctx.sampleRate);
+  const data = scrapeNoise.getChannelData(0);
+  for (let i = 0; i < data.length; i += 1) {
+    data[i] = (Math.random() * 2 - 1) * 0.7;
+  }
+  const scrape = ctx.createBufferSource();
+  scrape.buffer = scrapeNoise;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.setValueAtTime(1500, now);
+  filter.frequency.exponentialRampToValueAtTime(820, now + 0.16);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.11, now + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+  clang.connect(gain);
+  scrape.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioState.master);
+  clang.start(now);
+  scrape.start(now);
+  clang.stop(now + 0.18);
+  scrape.stop(now + 0.2);
 }
 
 function playSpraySound() {
@@ -1089,8 +1212,29 @@ const state = {
   uiClickSoundEnabled: true,
   animationSpeed: 100,
   mathPromptResolve: null,
+  encounterOpen: false,
+  encounterRunning: false,
+  encounterData: null,
+  encounterAnimId: 0,
+  encounterMouseX: 0,
+  encounterMouseY: 0,
+  mountainOpen: false,
+  mountainRunning: false,
+  mountainData: null,
+  mountainAnimId: 0,
+  mountainResetTimer: 0,
+  mountainKeys: {
+    left: false,
+    right: false,
+    jump: false,
+  },
+  practiceMode: false,
+  practiceSession: null,
+  debugCommandsEnabled: false,
+  debugImmortality: false,
   hp: 100,
   maxHp: 100,
+  foodBarPeak: 100,
   turnsToWin: 0,
   trackLength: 0,
   position: 0,
@@ -1169,6 +1313,8 @@ const eventTable = [
   { key: 'tablet', weight: 2, text: 'A black stone tablet juts half-buried from the sand.' },
   { key: 'tabletMystic', weight: 0.8, text: 'You uncover an unfamiliar ancient tablet etched in unknown script.' },
   { key: 'natives', weight: 8, text: 'Native traders flag you down from the dunes.' },
+  { key: 'herd', weight: 6, text: 'You run into a hostile alien herd.' },
+  { key: 'mountain', weight: 4, text: 'A jagged mountain pass blocks your route. Manual driving required.' },
   { key: 'fly', weight: 0.2, text: 'SoMeThInG hAPpEnEd' },
   { key: 'worm', weight: 1, kill: true, text: 'The worm erupts from beneath you. Instant kill.' },
 ];
@@ -1199,6 +1345,9 @@ restartBtn.addEventListener('click', () => {
   state.pendingPlacement = null;
   state.colonizeDelayTarget = loadColonizeDelay();
   state.colony = loadStoredColony();
+  state.running = false;
+  state.gameOver = false;
+  state.foodBarPeak = Math.max(100, state.food);
   syncRecordsUi();
   syncLoreUi();
   syncColonizeUi();
@@ -1277,7 +1426,25 @@ animationSpeedSlider.addEventListener('input', () => {
   storeSetupSettings();
   syncSetupSettingsUi();
 });
+practiceHerdBtn.addEventListener('click', () => launchPracticeSimulation('herd'));
+practiceMountainBtn.addEventListener('click', () => launchPracticeSimulation('mountain'));
+mountainSwarmDebugBtn.addEventListener('click', activateMountainDebugSwarm);
 mathSubmitBtn.addEventListener('click', submitMathAnswer);
+encounterStartBtn.addEventListener('click', startEncounterBattle);
+mountainStartBtn.addEventListener('click', startMountainPass);
+encounterCanvas.addEventListener('mousemove', (event) => {
+  if (!state.encounterOpen || !state.encounterData) {
+    return;
+  }
+  const rect = encounterCanvas.getBoundingClientRect();
+  const x = ((event.clientX - rect.left) / rect.width) * encounterCanvas.width;
+  const y = ((event.clientY - rect.top) / rect.height) * encounterCanvas.height;
+  state.encounterMouseX = Math.max(40, Math.min(encounterCanvas.width - 40, x));
+  state.encounterMouseY = Math.max(40, Math.min(encounterCanvas.height - 40, y));
+});
+encounterCanvas.addEventListener('click', () => {
+  fireEncounterLaser();
+});
 mathAnswerInput.addEventListener('keydown', (event) => {
   if (!event.metaKey && !event.ctrlKey && !event.altKey) {
     if (event.key.length === 1) {
@@ -1305,6 +1472,43 @@ mathQuestionPanel.addEventListener('keydown', (event) => {
   }
 });
 window.addEventListener('keydown', handleCapitalMarketKeydown);
+window.addEventListener('keydown', (event) => {
+  if (state.mountainOpen) {
+    if (event.code === 'ArrowLeft' || event.code === 'KeyA') {
+      state.mountainKeys.left = true;
+      event.preventDefault();
+    } else if (event.code === 'ArrowRight' || event.code === 'KeyD') {
+      state.mountainKeys.right = true;
+      event.preventDefault();
+    } else if (event.code === 'ArrowUp' || event.code === 'KeyW' || event.code === 'Space') {
+      state.mountainKeys.jump = true;
+      event.preventDefault();
+    }
+    return;
+  }
+  if (!state.encounterOpen) {
+    return;
+  }
+  if (event.code === 'Space') {
+    event.preventDefault();
+    fireEncounterLaser();
+  }
+});
+window.addEventListener('keyup', (event) => {
+  if (!state.mountainOpen) {
+    return;
+  }
+  if (event.code === 'ArrowLeft' || event.code === 'KeyA') {
+    state.mountainKeys.left = false;
+    event.preventDefault();
+  } else if (event.code === 'ArrowRight' || event.code === 'KeyD') {
+    state.mountainKeys.right = false;
+    event.preventDefault();
+  } else if (event.code === 'ArrowUp' || event.code === 'KeyW' || event.code === 'Space') {
+    state.mountainKeys.jump = false;
+    event.preventDefault();
+  }
+});
 document.addEventListener('click', (event) => {
   const button = event.target instanceof Element ? event.target.closest('button') : null;
   if (!button || button.disabled) {
@@ -1317,6 +1521,8 @@ document.addEventListener('click', (event) => {
 
 function startGame() {
   unlockAudioContext();
+  closeEncounter(false);
+  closeMountainPass(false);
 
   const chosenFood = Number(foodInput.value);
   const safeFood = Number.isFinite(chosenFood) ? Math.max(20, Math.min(300, chosenFood)) : 120;
@@ -1325,6 +1531,7 @@ function startGame() {
   state.gameOver = false;
   state.turn = 0;
   state.food = safeFood;
+  state.foodBarPeak = Math.max(100, safeFood);
   state.points = loadStoredPoints();
   state.runStartPoints = state.points;
   state.maxHp = loadStoredMaxHp();
@@ -1414,8 +1621,12 @@ function showSetup() {
   state.marketOpen = false;
   state.islandOpen = false;
   state.pendingPlacement = null;
+  closeEncounter(false);
+  closeMountainPass(false);
   dismissMathQuestion(null);
   setupPanel.classList.remove('hidden');
+  state.running = false;
+  state.gameOver = false;
   state.points = loadStoredPoints();
   state.mathModeEnabled = loadStoredMathModeEnabled();
   state.mathModeOperator = loadStoredMathModeOperator();
@@ -1437,7 +1648,7 @@ function showSetup() {
 }
 
 async function advanceTurn() {
-  if (!state.running || state.gameOver || state.traderOpen || state.tabletOpen || state.mathPromptResolve) {
+  if (!state.running || state.gameOver || state.traderOpen || state.tabletOpen || state.mathPromptResolve || state.encounterOpen || state.mountainOpen) {
     return;
   }
 
@@ -1445,7 +1656,7 @@ async function advanceTurn() {
 }
 
 async function processTurn({ skipHazards, skipLabel = '' }) {
-  if (!state.running || state.gameOver || state.traderOpen || state.tabletOpen || state.mathPromptResolve) {
+  if (!state.running || state.gameOver || state.traderOpen || state.tabletOpen || state.mathPromptResolve || state.encounterOpen || state.mountainOpen) {
     return;
   }
   const upcomingTurn = state.turn + 1;
@@ -1564,6 +1775,16 @@ function applyEvent(event) {
     playNativeRaspSound();
     openNativeTrader();
     triggerEventAnimation('natives', 88);
+    return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
+  }
+
+  if (event.key === 'herd') {
+    openEncounter();
+    return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
+  }
+
+  if (event.key === 'mountain') {
+    openMountainPass();
     return { sprayConsumed: false, autoSkipTurns: 0, autoSkipLabel: '' };
   }
 
@@ -5122,7 +5343,8 @@ function buyItem(kind) {
 
   state.points -= price;
 
-  const buyingFromSetup = !state.running;
+  // Use actual UI location, not run-state, so setup purchases always go to loadout.
+  const buyingFromSetup = !setupPanel.classList.contains('hidden');
   if (kind === 'repair') {
     if (buyingFromSetup) {
       state.loadoutBonus.repairKits += 1;
@@ -5201,6 +5423,20 @@ function resolveRoundState(checkWin, options = {}) {
 
 function endGame(message, cause = '', options = {}) {
   const { skipFinalLog = false } = options;
+  if (state.practiceMode) {
+    closeEncounter(false);
+    closeMountainPass(false);
+    finishPracticeSimulation(message, cause === 'win' ? 'good' : 'bad');
+    return;
+  }
+  if (cause !== 'win' && state.debugImmortality) {
+    state.food = Math.max(1, state.food);
+    state.hp = Math.max(1, state.hp);
+    syncHud();
+    draw();
+    addLog('Debug immortality prevented death.', 'good');
+    return;
+  }
   if (cause === 'win') {
     playWinFanfareSound();
   } else if (cause === 'explode') {
@@ -5208,6 +5444,8 @@ function endGame(message, cause = '', options = {}) {
   }
   state.gameOver = true;
   state.running = false;
+  closeEncounter(false);
+  closeMountainPass(false);
   state.traderOpen = false;
   state.tabletOpen = false;
   dismissMathQuestion(null);
@@ -5230,12 +5468,15 @@ function endGame(message, cause = '', options = {}) {
 
 function syncHud() {
   const hp = Math.max(0, state.hp);
+  state.foodBarPeak = Math.max(100, state.foodBarPeak || 100, state.food);
+  const foodRatio = state.foodBarPeak > 0 ? Math.max(0, Math.min(1, state.food / state.foodBarPeak)) : 0;
   turnValue.textContent = String(state.turn);
   foodValue.textContent = String(state.food);
   pointsValue.textContent = String(state.points);
   targetValue.textContent = String(state.turnsToWin);
   hpValue.textContent = `${hp}/${state.maxHp}`;
   hpBarFill.style.width = `${(hp / state.maxHp) * 100}%`;
+  foodBarFill.style.width = `${foodRatio * 100}%`;
 
   if (hp > 60) {
     hpBarFill.style.background = 'linear-gradient(180deg, #a2f07a 0%, #4fb35d 55%, #2e7538 100%)';
@@ -5243,6 +5484,13 @@ function syncHud() {
     hpBarFill.style.background = 'linear-gradient(180deg, #ffd173 0%, #d98f3f 55%, #92512a 100%)';
   } else {
     hpBarFill.style.background = 'linear-gradient(180deg, #ff9d66 0%, #d44f4f 55%, #8e2434 100%)';
+  }
+  if (foodRatio > 0.55) {
+    foodBarFill.style.background = 'linear-gradient(180deg, #2a2f2d 0%, #454d4a 55%, #1d2221 100%)';
+  } else if (foodRatio > 0.25) {
+    foodBarFill.style.background = 'linear-gradient(180deg, #322b28 0%, #4b403b 55%, #201816 100%)';
+  } else {
+    foodBarFill.style.background = 'linear-gradient(180deg, #432c28 0%, #66433c 55%, #281815 100%)';
   }
   syncSetupShopUi();
 }
@@ -5456,6 +5704,98 @@ function syncSetupSettingsUi() {
   uiClickSoundToggle.checked = state.uiClickSoundEnabled;
   animationSpeedSlider.value = String(state.animationSpeed);
   animationSpeedValue.textContent = `${state.animationSpeed}%`;
+  if (practiceStatus) {
+    practiceStatus.textContent = state.practiceMode
+      ? 'Practice running...'
+      : 'Launch a minigame without risking a real mission.';
+  }
+}
+
+function beginPracticeSimulation(kind) {
+  if (state.practiceMode || state.encounterOpen || state.mountainOpen) {
+    return false;
+  }
+  state.practiceSession = {
+    running: state.running,
+    gameOver: state.gameOver,
+    hp: state.hp,
+    maxHp: state.maxHp,
+    food: state.food,
+    turn: state.turn,
+    turnsToWin: state.turnsToWin,
+    points: state.points,
+    deathMode: state.deathMode,
+    lastDamageSource: state.lastDamageSource,
+  };
+  state.practiceMode = true;
+  state.running = false;
+  state.gameOver = false;
+  state.hp = state.maxHp;
+  state.food = 200;
+  state.turn = 0;
+  state.turnsToWin = 0;
+  state.deathMode = '';
+  state.lastDamageSource = '';
+  if (practiceStatus) {
+    practiceStatus.textContent = kind === 'herd'
+      ? 'Herd simulation active.'
+      : 'Mountain simulation active.';
+  }
+  return true;
+}
+
+function finishPracticeSimulation(message = 'Practice complete.', tone = '') {
+  if (!state.practiceMode || !state.practiceSession) {
+    return;
+  }
+  const snapshot = state.practiceSession;
+  state.practiceMode = false;
+  state.practiceSession = null;
+  state.running = snapshot.running;
+  state.gameOver = snapshot.gameOver;
+  state.hp = snapshot.hp;
+  state.maxHp = snapshot.maxHp;
+  state.food = snapshot.food;
+  state.turn = snapshot.turn;
+  state.turnsToWin = snapshot.turnsToWin;
+  state.points = snapshot.points;
+  state.deathMode = snapshot.deathMode;
+  state.lastDamageSource = snapshot.lastDamageSource;
+  titlePanel.classList.add('hidden');
+  setupPanel.classList.remove('hidden');
+  gamePanel.classList.add('hidden');
+  syncHud();
+  syncSetupShopUi();
+  syncSetupSettingsUi();
+  if (practiceStatus) {
+    practiceStatus.textContent = message;
+  }
+  if (tone) {
+    window.setTimeout(() => {
+      if (!state.practiceMode && practiceStatus && practiceStatus.textContent === message) {
+        practiceStatus.textContent = 'Launch a minigame without risking a real mission.';
+      }
+    }, 2400);
+  }
+}
+
+function launchPracticeSimulation(kind) {
+  if (!beginPracticeSimulation(kind)) {
+    return;
+  }
+  const opened = kind === 'herd' ? openEncounter(true) : openMountainPass(true);
+  if (!opened) {
+    finishPracticeSimulation('Practice could not start right now.', 'bad');
+    return;
+  }
+}
+
+function syncMountainDebugUi() {
+  if (!mountainSwarmDebugBtn) {
+    return;
+  }
+  const show = state.mountainOpen && state.debugCommandsEnabled;
+  mountainSwarmDebugBtn.classList.toggle('hidden', !show);
 }
 
 function syncSetupShopUi() {
@@ -5588,6 +5928,1465 @@ async function runMathCheck(promptLabel = 'Turn Check', questionCount = 1) {
     return false;
   }
   return true;
+}
+
+function buildEncounterEnemies() {
+  const enemies = [];
+  const w = encounterCanvas.width;
+  const h = encounterCanvas.height;
+  const spawnOnEdge = (radius = 20) => {
+    const side = randInt(0, 3);
+    if (side === 0) {
+      return { x: randInt(radius + 12, w - radius - 12), y: radius + 6 };
+    }
+    if (side === 1) {
+      return { x: w - radius - 6, y: randInt(radius + 12, h - radius - 12) };
+    }
+    if (side === 2) {
+      return { x: randInt(radius + 12, w - radius - 12), y: h - radius - 6 };
+    }
+    return { x: radius + 6, y: randInt(radius + 12, h - radius - 12) };
+  };
+  const inwardVelocity = (sx, sy, speedMin, speedMax) => {
+    let dx = (w / 2) - sx;
+    let dy = (h / 2) - sy;
+    const mag = Math.hypot(dx, dy) || 1;
+    dx /= mag;
+    dy /= mag;
+    const speed = randFloat(speedMin, speedMax);
+    return { vx: dx * speed, vy: dy * speed };
+  };
+
+  const nibCount = randInt(5, 9);
+  for (let i = 0; i < nibCount; i += 1) {
+    const r = 18;
+    const spawn = spawnOnEdge(r);
+    const vel = inwardVelocity(spawn.x, spawn.y, 0.45, 1.25);
+    enemies.push({
+      type: 'nib',
+      x: spawn.x,
+      y: spawn.y,
+      vx: vel.vx,
+      vy: vel.vy,
+      speed: randFloat(0.85, 1.25),
+      engageDelay: randInt(24, 140),
+      hp: 3,
+      r,
+      damage: 4,
+      foodMin: 6,
+      foodMax: 13,
+    });
+  }
+
+  const morspulexCount = randInt(1, 2);
+  for (let i = 0; i < morspulexCount; i += 1) {
+    const r = 34;
+    const spawn = spawnOnEdge(r);
+    const vel = inwardVelocity(spawn.x, spawn.y, 0.28, 0.62);
+    enemies.push({
+      type: 'morspulex',
+      x: spawn.x,
+      y: spawn.y,
+      vx: vel.vx,
+      vy: vel.vy,
+      speed: randFloat(0.55, 0.9),
+      engageDelay: randInt(30, 170),
+      hp: 12,
+      r,
+      damage: 13,
+      foodMin: 26,
+      foodMax: 45,
+    });
+  }
+
+  if (Math.random() < 0.22) {
+    const muscaCount = randInt(9, 16);
+    for (let i = 0; i < muscaCount; i += 1) {
+      const r = 10;
+      const spawn = spawnOnEdge(r);
+      const vel = inwardVelocity(spawn.x, spawn.y, 0.85, 2.1);
+      enemies.push({
+        type: 'musca',
+        x: spawn.x,
+        y: spawn.y,
+        vx: vel.vx,
+        vy: vel.vy,
+        speed: randFloat(1.2, 1.9),
+        engageDelay: randInt(18, 100),
+        hp: 1,
+        r,
+        damage: 2,
+        foodMin: 2,
+        foodMax: 5,
+      });
+    }
+    encounterIntroText.textContent = 'Nibblorax herd detected. Musca Swarms confirmed.';
+  } else {
+    encounterIntroText.textContent = 'Nibblorax herd detected. Morspulex movement confirmed.';
+  }
+  return enemies;
+}
+
+function openEncounter(force = false) {
+  if (state.encounterOpen || state.gameOver || (!state.running && !force)) {
+    return false;
+  }
+  state.encounterOpen = true;
+  state.encounterRunning = false;
+  state.encounterData = {
+    timer: 18 * 60,
+    shotCooldown: 0,
+    playerX: encounterCanvas.width / 2,
+    playerY: encounterCanvas.height / 2,
+    lasers: [],
+    enemies: buildEncounterEnemies(),
+    drops: [],
+    damageTaken: 0,
+    foodGained: 0,
+  };
+  state.encounterMouseX = encounterCanvas.width / 2;
+  state.encounterMouseY = encounterCanvas.height / 2;
+  nextTurnBtn.disabled = true;
+  syncInventoryUi();
+  encounterPanel.classList.remove('hidden');
+  encounterIntro.classList.remove('hidden');
+  drawEncounterScene();
+  return true;
+}
+
+function startEncounterBattle() {
+  if (!state.encounterOpen || !state.encounterData || state.encounterRunning) {
+    return;
+  }
+  unlockAudioContext();
+  state.encounterRunning = true;
+  encounterIntro.classList.add('hidden');
+  updateEncounter();
+}
+
+function fireEncounterLaser() {
+  if (!state.encounterOpen || !state.encounterRunning || !state.encounterData) {
+    return;
+  }
+  const data = state.encounterData;
+  if (data.shotCooldown > 0) {
+    return;
+  }
+  const px = data.playerX;
+  const py = data.playerY;
+  const tx = state.encounterMouseX;
+  const ty = state.encounterMouseY;
+  let dx = tx - px;
+  let dy = ty - py;
+  const mag = Math.hypot(dx, dy);
+  if (mag < 0.001) {
+    dx = 0;
+    dy = -1;
+  } else {
+    dx /= mag;
+    dy /= mag;
+  }
+  data.lasers.push({ x: px, y: py, vx: dx * 12.5, vy: dy * 12.5 });
+  data.shotCooldown = 8;
+  playSonarBeepSound();
+}
+
+function drawFoodDropIcon(x, y, scale = 1) {
+  const s = scale;
+  encounterCtx.fillStyle = '#0f1010';
+  encounterCtx.fillRect(x - 8 * s, y - 5 * s, 16 * s, 10 * s);
+  encounterCtx.fillRect(x + 7 * s, y - 2 * s, 6 * s, 6 * s);
+  encounterCtx.fillStyle = '#1e2f26';
+  encounterCtx.fillRect(x - 2 * s, y - 6 * s, 3 * s, 12 * s);
+}
+
+function drawFlySprite(targetCtx, x, y, options = {}) {
+  const { scale = 1, upsideDown = false, bubble = '', angry = false } = options;
+  const s = scale;
+  const left = Math.round(x);
+  const top = Math.round(y);
+
+  targetCtx.fillStyle = '#1e1f24';
+  targetCtx.fillRect(left - 20 * s, top - 10 * s, 40 * s, 20 * s);
+  targetCtx.fillStyle = '#2a2d34';
+  targetCtx.fillRect(left - 14 * s, top - 14 * s, 28 * s, 8 * s);
+  targetCtx.fillStyle = '#9de0ff';
+  targetCtx.fillRect(left - 24 * s, top - 6 * s, 6 * s, 10 * s);
+  targetCtx.fillRect(left + 18 * s, top - 6 * s, 6 * s, 10 * s);
+  targetCtx.fillStyle = '#ff3f3f';
+  targetCtx.fillRect(left - 8 * s, top - 9 * s, 4 * s, 4 * s);
+  targetCtx.fillRect(left + 4 * s, top - 9 * s, 4 * s, 4 * s);
+  if (angry) {
+    targetCtx.fillStyle = '#101216';
+    targetCtx.fillRect(left - 11 * s, top - 12 * s, 7 * s, 2 * s);
+    targetCtx.fillRect(left + 4 * s, top - 12 * s, 7 * s, 2 * s);
+    targetCtx.fillRect(left - 9 * s, top - 11 * s, 5 * s, 2 * s);
+    targetCtx.fillRect(left + 4 * s, top - 11 * s, 5 * s, 2 * s);
+  }
+  targetCtx.fillStyle = '#121318';
+  targetCtx.fillRect(left - 16 * s, top + 9 * s, 32 * s, 3 * s);
+  if (upsideDown) {
+    targetCtx.fillStyle = '#e6e8ef';
+    targetCtx.fillRect(left - 6 * s, top - 2 * s, 12 * s, 2 * s);
+  }
+
+  if (bubble) {
+    targetCtx.fillStyle = '#f0f4ff';
+    targetCtx.fillRect(left - 6 * s, top - 34 * s, 18 * s, 14 * s);
+    targetCtx.fillStyle = '#232730';
+    targetCtx.font = `bold ${Math.max(10, Math.floor(12 * s))}px Verdana`;
+    targetCtx.fillText(bubble, left + 1 * s, top - 23 * s);
+  }
+}
+
+function drawEncounterScene() {
+  if (!state.encounterData) {
+    return;
+  }
+  const data = state.encounterData;
+  const w = encounterCanvas.width;
+  const h = encounterCanvas.height;
+  encounterCtx.fillStyle = '#050608';
+  encounterCtx.fillRect(0, 0, w, h);
+
+  for (let y = Math.floor(h * 0.58); y < h; y += 24) {
+    encounterCtx.fillStyle = y % 48 === 0 ? '#121214' : '#0a0a0c';
+    encounterCtx.fillRect(0, y, w, 18);
+  }
+
+  for (let i = 0; i < 26; i += 1) {
+    const sx = (i * 79) % w;
+    const sy = (i * 37) % (h * 0.52);
+    encounterCtx.fillStyle = i % 4 === 0 ? '#6f7f98' : '#4f5870';
+    encounterCtx.fillRect(sx, sy, 2, 2);
+  }
+
+  const px = data.playerX;
+  const py = data.playerY;
+  encounterCtx.fillStyle = '#394052';
+  encounterCtx.fillRect(px - 24, py + 26, 48, 16);
+  encounterCtx.fillStyle = '#7a87a4';
+  encounterCtx.fillRect(px - 14, py, 28, 26);
+  encounterCtx.fillStyle = '#8fe4ff';
+  encounterCtx.fillRect(px - 8, py + 8, 16, 3);
+  encounterCtx.fillStyle = '#ff5959';
+  encounterCtx.fillRect(px - 2, py - 4, 4, 4);
+
+  for (const laser of data.lasers) {
+    encounterCtx.fillStyle = '#ff4d4d';
+    encounterCtx.fillRect(laser.x - 2, laser.y - 2, 4, 4);
+  }
+
+  for (const enemy of data.enemies) {
+    if (enemy.type === 'nib') {
+      encounterCtx.fillStyle = '#101114';
+      encounterCtx.fillRect(enemy.x - 18, enemy.y - 10, 36, 16);
+      encounterCtx.fillStyle = '#1d1f24';
+      encounterCtx.fillRect(enemy.x - 10, enemy.y - 16, 20, 8);
+      encounterCtx.fillStyle = '#ff3a3a';
+      encounterCtx.fillRect(enemy.x - 7, enemy.y - 8, 4, 4);
+      encounterCtx.fillRect(enemy.x + 3, enemy.y - 8, 4, 4);
+    } else if (enemy.type === 'musca') {
+      drawFlySprite(encounterCtx, enemy.x, enemy.y, { scale: 0.55, angry: true });
+    } else {
+      encounterCtx.fillStyle = '#1b1a20';
+      encounterCtx.beginPath();
+      encounterCtx.arc(enemy.x, enemy.y, 30, 0, Math.PI * 2);
+      encounterCtx.fill();
+      encounterCtx.fillStyle = '#2b2030';
+      encounterCtx.beginPath();
+      encounterCtx.arc(enemy.x, enemy.y, 20, 0, Math.PI * 2);
+      encounterCtx.fill();
+      encounterCtx.fillStyle = '#6b1830';
+      encounterCtx.beginPath();
+      encounterCtx.arc(enemy.x + 6, enemy.y - 2, 8, 0, Math.PI * 2);
+      encounterCtx.fill();
+      // Morspulex legs: short joint up from the sphere rim, then long leg down.
+      const legOffsets = [-22, -14, -6, 6, 14, 22];
+      for (const ox of legOffsets) {
+        encounterCtx.fillStyle = '#2a2430';
+        encounterCtx.fillRect(enemy.x + ox, enemy.y + 18, 3, 6); // joint up from body edge
+        encounterCtx.fillStyle = '#121218';
+        encounterCtx.fillRect(enemy.x + ox - 1, enemy.y + 24, 5, 12); // leg down
+      }
+    }
+  }
+
+  for (const drop of data.drops) {
+    drawFoodDropIcon(drop.x, drop.y, 1);
+  }
+
+  encounterCtx.fillStyle = '#d7e8ff';
+  encounterCtx.font = 'bold 18px Verdana';
+  encounterCtx.fillText(`HP: ${Math.max(0, state.hp)}/${state.maxHp}`, 18, 28);
+  encounterCtx.fillText(`Food: ${state.food}`, 18, 52);
+  encounterCtx.fillText(`Herd Time: ${Math.max(0, Math.ceil(data.timer / 60))}`, w - 180, 28);
+}
+
+function updateEncounter() {
+  if (!state.encounterOpen || !state.encounterRunning || !state.encounterData) {
+    return;
+  }
+  const data = state.encounterData;
+  const h = encounterCanvas.height;
+  const w = encounterCanvas.width;
+  data.timer -= 1;
+  data.shotCooldown = Math.max(0, data.shotCooldown - 1);
+  data.playerX = encounterCanvas.width / 2;
+  data.playerY = encounterCanvas.height / 2;
+
+  for (const laser of data.lasers) {
+    laser.x += laser.vx;
+    laser.y += laser.vy;
+  }
+  data.lasers = data.lasers.filter((laser) => (
+    laser.x > -40
+    && laser.x < w + 40
+    && laser.y > -40
+    && laser.y < h + 40
+  ));
+
+  for (const enemy of data.enemies) {
+    if (enemy.engageDelay > 0) {
+      enemy.engageDelay -= 1;
+      enemy.vx *= 0.985;
+      enemy.vy *= 0.985;
+    } else {
+      const targetDx = data.playerX - enemy.x;
+      const targetDy = data.playerY - enemy.y;
+      const distance = Math.hypot(targetDx, targetDy) || 1;
+      const desiredVx = (targetDx / distance) * enemy.speed;
+      const desiredVy = (targetDy / distance) * enemy.speed;
+      enemy.vx = (enemy.vx * 0.72) + (desiredVx * 0.28);
+      enemy.vy = (enemy.vy * 0.72) + (desiredVy * 0.28);
+    }
+    enemy.x += enemy.vx;
+    enemy.y += enemy.vy;
+    if (enemy.x < enemy.r || enemy.x > w - enemy.r) {
+      enemy.vx *= -1;
+      enemy.x = Math.max(enemy.r, Math.min(w - enemy.r, enemy.x));
+    }
+    if (enemy.y < enemy.r || enemy.y > h - enemy.r) {
+      enemy.vy *= -1;
+      enemy.y = Math.max(enemy.r, Math.min(h - enemy.r, enemy.y));
+    }
+  }
+
+  for (let i = data.enemies.length - 1; i >= 0; i -= 1) {
+    const enemy = data.enemies[i];
+    let destroyed = false;
+    for (let j = data.lasers.length - 1; j >= 0; j -= 1) {
+      const laser = data.lasers[j];
+      if (Math.abs(laser.x - enemy.x) <= enemy.r && Math.abs(laser.y - enemy.y) <= enemy.r) {
+        enemy.hp -= 1;
+        data.lasers.splice(j, 1);
+        if (enemy.hp <= 0) {
+          destroyed = true;
+          break;
+        }
+      }
+    }
+    if (destroyed) {
+      const foodGain = randInt(enemy.foodMin, enemy.foodMax);
+      data.foodGained += foodGain;
+      state.food += foodGain;
+      data.drops.push({ x: enemy.x, y: enemy.y, vy: 1.5 + Math.random() * 1.2, food: foodGain, t: 38 });
+      data.enemies.splice(i, 1);
+      continue;
+    }
+    if (Math.hypot(enemy.x - data.playerX, enemy.y - data.playerY) <= enemy.r + 22) {
+      state.hp = Math.max(0, state.hp - enemy.damage);
+      data.damageTaken += enemy.damage;
+      state.lastDamageSource = 'herd';
+      data.enemies.splice(i, 1);
+    }
+  }
+
+  for (let i = data.drops.length - 1; i >= 0; i -= 1) {
+    const drop = data.drops[i];
+    drop.y += drop.vy;
+    drop.t -= 1;
+    if (drop.y > h - 18 || drop.t <= 0) {
+      data.drops.splice(i, 1);
+    }
+  }
+
+  syncHud();
+  drawEncounterScene();
+
+  if (state.hp <= 0) {
+    closeEncounter(true);
+    endGame('The herd ripped through your crawler.', 'destroyed');
+    return;
+  }
+
+  if (data.timer <= 0 || (data.enemies.length === 0 && data.drops.length === 0)) {
+    closeEncounter(true);
+    if (state.practiceMode) {
+      finishPracticeSimulation(`Herd practice complete. Damage: ${data.damageTaken} HP. Food collected: +${data.foodGained}.`, 'good');
+      return;
+    }
+    addLog(`Encounter complete. Herd damage: ${data.damageTaken} HP. Food collected: +${data.foodGained}.`, data.damageTaken > 0 ? '' : 'good');
+    syncHud();
+    syncInventoryUi();
+    draw();
+    return;
+  }
+
+  state.encounterAnimId = window.requestAnimationFrame(updateEncounter);
+}
+
+function closeEncounter(restoreTurnButton = true) {
+  if (state.encounterAnimId) {
+    window.cancelAnimationFrame(state.encounterAnimId);
+    state.encounterAnimId = 0;
+  }
+  state.encounterOpen = false;
+  state.encounterRunning = false;
+  state.encounterData = null;
+  encounterPanel.classList.add('hidden');
+  encounterIntro.classList.remove('hidden');
+  if (restoreTurnButton && state.running && !state.gameOver && !state.traderOpen && !state.tabletOpen) {
+    nextTurnBtn.disabled = false;
+  }
+}
+
+function buildMountainPassData() {
+  const courseLength = 5600;
+  const nodes = [];
+  const platforms = [];
+  let x = 0;
+  let y = 560;
+  nodes.push({ x, y, curve: 0 });
+  while (x < courseLength + 320) {
+    const earlyStretch = x < 900;
+    x += earlyStretch ? randInt(170, 260) : randInt(130, 240);
+    y = Math.max(
+      earlyStretch ? 430 : 300,
+      Math.min(
+        640,
+        y + (earlyStretch ? randInt(-65, 55) : randInt(-170, 155))
+      )
+    );
+    nodes.push({
+      x,
+      y,
+      curve: earlyStretch ? randInt(-30, 30) : randInt(-90, 90),
+    });
+  }
+  nodes[nodes.length - 1].y = Math.max(360, nodes[nodes.length - 1].y - 80);
+
+  let platformCursor = 760;
+  for (let i = 0; i < 4; i += 1) {
+    const span = randInt(190, 250);
+    const takeoffX = platformCursor + randInt(120, 200);
+    const takeoffY = sampleRawMountainHeight(nodes, takeoffX);
+    const jumpReach = randInt(230, 280);
+    const landingSearchStart = Math.min(courseLength - 260, takeoffX + jumpReach);
+    const landingSearchEnd = Math.min(courseLength - 120, landingSearchStart + 220);
+    let landingX = landingSearchStart;
+    let landingY = sampleRawMountainHeight(nodes, landingX);
+    for (let sx = landingSearchStart; sx <= landingSearchEnd; sx += 18) {
+      const sy = sampleRawMountainHeight(nodes, sx);
+      if (sy <= landingY + 28) {
+        landingX = sx;
+        landingY = sy;
+        break;
+      }
+      landingX = sx;
+      landingY = sy;
+    }
+
+    const platformMinX = takeoffX + Math.floor(jumpReach * 0.5);
+    const platformMaxX = Math.max(platformMinX + 24, landingX - span - 36);
+    const platformX = randInt(platformMinX, platformMaxX);
+    const bridgeBaseY = Math.min(takeoffY, landingY);
+    const desiredY = Math.max(300, bridgeBaseY - randInt(78, 112));
+    platforms.push({
+      x: platformX,
+      width: span,
+      y: desiredY,
+    });
+    platformCursor = landingX + randInt(70, 130);
+  }
+
+  const spikes = buildMountainSpikePatches(nodes, platforms, courseLength);
+  return {
+    courseLength,
+    nodes,
+    platforms,
+    spikes,
+    sinkPatches: buildMountainSinkPatches(nodes, platforms, spikes, courseLength),
+    creatures: buildMountainCreatures(nodes, platforms, spikes, courseLength),
+    player: {
+      x: 120,
+      y: 0,
+      vx: 0,
+      vy: 0,
+      grounded: false,
+      angle: 0,
+      jumpLatch: false,
+      jumpsUsed: 0,
+    },
+    cameraX: 0,
+    finished: false,
+    crashFlash: 0,
+    animTick: 0,
+    sinking: null,
+    flySwarm: Math.random() < 0.08 ? buildMountainFlySwarm() : null,
+  };
+}
+
+function buildMountainSpikePatches(nodes, platforms, courseLength) {
+  const spikes = [];
+  const desiredCount = 7;
+  let guard = 0;
+  while (spikes.length < desiredCount && guard < 140) {
+    guard += 1;
+    const x = randInt(420, courseLength - 180);
+    const y = sampleRawMountainHeight(nodes, x);
+    const tooNearPlatform = platforms.some((platform) => (
+      x >= platform.x - 24
+      && x <= platform.x + platform.width + 24
+      && Math.abs(platform.y - y) < 120
+    ));
+    const overlaps = spikes.some((spike) => Math.abs(spike.x - x) < 130 && Math.abs(spike.y - y) < 70);
+    if (tooNearPlatform || overlaps) {
+      continue;
+    }
+    spikes.push({
+      x,
+      y,
+      width: 48,
+    });
+  }
+  return spikes.sort((a, b) => a.x - b.x);
+}
+
+function buildMountainSinkPatches(nodes, platforms, spikes, courseLength) {
+  const sinks = [];
+  const desiredCount = 5;
+  let guard = 0;
+  while (sinks.length < desiredCount && guard < 120) {
+    guard += 1;
+    const x = randInt(560, courseLength - 240);
+    const y = sampleRawMountainHeight(nodes, x);
+    const leftY = sampleRawMountainHeight(nodes, x - 44);
+    const rightY = sampleRawMountainHeight(nodes, x + 44);
+    const slopeDelta = Math.abs(rightY - leftY);
+    const width = slopeDelta > 42 ? randInt(76, 98) : randInt(118, 156);
+    const tooNearPlatform = platforms.some((platform) => (
+      x + (width * 0.5) >= platform.x - 30
+      && x - (width * 0.5) <= platform.x + platform.width + 30
+      && Math.abs(platform.y - y) < 120
+    ));
+    const overlapsSpike = spikes.some((spike) => Math.abs(spike.x - x) < 120);
+    const overlapsSink = sinks.some((sink) => Math.abs(sink.x - x) < 150);
+    if (tooNearPlatform || overlapsSpike || overlapsSink) {
+      continue;
+    }
+    sinks.push({
+      x,
+      y,
+      width,
+      cooldown: 0,
+      steep: slopeDelta > 42,
+    });
+  }
+  return sinks.sort((a, b) => a.x - b.x);
+}
+
+function buildMountainCreatures(nodes, platforms, spikes, courseLength) {
+  const creatures = [];
+  const specs = [
+    { type: 'morspulex', count: 2, radius: 28, speed: 1.1 },
+    { type: 'nib', count: 3, radius: 18, speed: 1.85 },
+  ];
+  for (const spec of specs) {
+    let guard = 0;
+    while (creatures.filter((entry) => entry.type === spec.type).length < spec.count && guard < 200) {
+      guard += 1;
+      const onPlatform = Math.random() < 0.35 && platforms.length > 0;
+      let x = randInt(520, courseLength - 180);
+      let y = sampleRawMountainHeight(nodes, x);
+      let supportType = 'ground';
+      let supportRef = null;
+      if (onPlatform) {
+        const platform = platforms[randInt(0, platforms.length - 1)];
+        if (platform.width < 130) {
+          continue;
+        }
+        x = randInt(platform.x + 30, platform.x + platform.width - 30);
+        y = platform.y;
+        supportType = 'platform';
+        supportRef = platform;
+      }
+      const nearSpike = spikes.some((spike) => Math.abs(spike.x - x) < 90 && Math.abs(spike.y - y) < 50);
+      const overlaps = creatures.some((entry) => Math.abs(entry.x - x) < 90 && Math.abs(entry.y - y) < 50);
+      if (nearSpike || overlaps) {
+        continue;
+      }
+      creatures.push({
+        type: spec.type,
+        x,
+        y,
+        vx: Math.random() < 0.5 ? -spec.speed : spec.speed,
+        radius: spec.radius,
+        speed: spec.speed,
+        cooldown: 0,
+        supportType,
+        supportRef,
+      });
+    }
+  }
+  return creatures;
+}
+
+function findMountainSupport(data, worldX) {
+  for (const platform of data.platforms) {
+    if (worldX >= platform.x && worldX <= platform.x + platform.width) {
+      return { y: platform.y, type: 'platform', ref: platform };
+    }
+  }
+  return { y: sampleRawMountainHeight(data.nodes, worldX), type: 'ground', ref: null };
+}
+
+function buildMountainFlySwarm() {
+  const anchorX = randInt(980, 4600);
+  const anchorY = randInt(180, 320);
+  const flies = [];
+  for (let i = 0; i < 50; i += 1) {
+    flies.push({
+      x: anchorX + randInt(-18, 18),
+      y: anchorY + randInt(-14, 14),
+      vx: 0,
+      vy: 0,
+      active: i !== 0,
+      hit: false,
+      cooldown: 0,
+    });
+  }
+  flies[0].active = true;
+  return {
+    anchorX,
+    anchorY,
+    phase: 'alert',
+    timer: 50,
+    triggered: false,
+    flies,
+  };
+}
+
+function activateMountainDebugSwarm() {
+  if (!state.mountainOpen || !state.mountainData || !state.debugCommandsEnabled) {
+    return;
+  }
+  const data = state.mountainData;
+  const anchorX = Math.min(data.courseLength - 120, data.player.x + 240);
+  const anchorY = Math.max(160, data.player.y - 120);
+  if (!data.flySwarm) {
+    data.flySwarm = buildMountainFlySwarm();
+  }
+  data.flySwarm.anchorX = anchorX;
+  data.flySwarm.anchorY = anchorY;
+  data.flySwarm.triggered = true;
+  data.flySwarm.phase = 'alert';
+  data.flySwarm.timer = 44;
+  playFlyBuzzSound(false);
+  data.flySwarm.flies = data.flySwarm.flies || [];
+  if (data.flySwarm.flies.length < 20) {
+    data.flySwarm = buildMountainFlySwarm();
+    data.flySwarm.anchorX = anchorX;
+    data.flySwarm.anchorY = anchorY;
+    data.flySwarm.triggered = true;
+    data.flySwarm.phase = 'alert';
+    data.flySwarm.timer = 44;
+  }
+  for (let i = 0; i < data.flySwarm.flies.length; i += 1) {
+    const fly = data.flySwarm.flies[i];
+    fly.x = anchorX + randInt(-24, 24);
+    fly.y = anchorY + randInt(-18, 18);
+    fly.vx = 0;
+    fly.vy = 0;
+    fly.cooldown = 0;
+    fly.active = i === 0;
+  }
+}
+
+function sampleRawMountainHeight(nodes, worldX) {
+  if (worldX <= nodes[0].x) {
+    return nodes[0].y;
+  }
+  for (let i = 0; i < nodes.length - 1; i += 1) {
+    const a = nodes[i];
+    const b = nodes[i + 1];
+    if (worldX >= a.x && worldX <= b.x) {
+      const t = (worldX - a.x) / Math.max(1, (b.x - a.x));
+      const eased = 0.5 - (Math.cos(t * Math.PI) * 0.5);
+      return (
+        a.y
+        + ((b.y - a.y) * eased)
+        + Math.sin(t * Math.PI) * ((a.curve + b.curve) * 0.5)
+      );
+    }
+  }
+  return nodes[nodes.length - 1].y;
+}
+
+function sampleMountainHeight(data, worldX) {
+  let terrain = sampleRawMountainHeight(data.nodes, worldX);
+  for (const platform of data.platforms) {
+    if (worldX >= platform.x && worldX <= platform.x + platform.width) {
+      terrain = Math.min(terrain, platform.y);
+    }
+  }
+  return terrain;
+}
+
+function openMountainPass(force = false) {
+  if (state.mountainOpen || state.gameOver || (!state.running && !force)) {
+    return false;
+  }
+  state.mountainOpen = true;
+  state.mountainRunning = false;
+  state.mountainData = buildMountainPassData();
+  state.mountainKeys.left = false;
+  state.mountainKeys.right = false;
+  state.mountainKeys.jump = false;
+  const startY = sampleMountainHeight(state.mountainData, state.mountainData.player.x);
+  state.mountainData.player.y = startY - 12;
+  state.mountainData.player.jumpsUsed = 0;
+  nextTurnBtn.disabled = true;
+  syncInventoryUi();
+  mountainPanel.classList.remove('hidden');
+  mountainIntro.classList.remove('hidden');
+  syncMountainDebugUi();
+  drawMountainPass();
+  return true;
+}
+
+function startMountainPass() {
+  if (!state.mountainOpen || !state.mountainData || state.mountainRunning) {
+    return;
+  }
+  unlockAudioContext();
+  state.mountainRunning = true;
+  mountainIntro.classList.add('hidden');
+  updateMountainPass();
+}
+
+function drawMountainCrawler(px, py, angle) {
+  mountainCtx.save();
+  mountainCtx.translate(px, py);
+  mountainCtx.rotate(angle);
+
+  mountainCtx.fillStyle = '#3b4356';
+  mountainCtx.fillRect(-42, -10, 84, 24);
+  mountainCtx.fillStyle = '#1f2430';
+  for (let i = -34; i <= 26; i += 12) {
+    mountainCtx.fillRect(i, 12, 8, 4);
+  }
+  mountainCtx.fillStyle = '#8a95b5';
+  mountainCtx.fillRect(-15, -92, 30, 78);
+  mountainCtx.fillStyle = '#b8dbff';
+  mountainCtx.fillRect(-9, -78, 18, 16);
+  mountainCtx.fillStyle = '#ff635e';
+  mountainCtx.fillRect(-3, -100, 6, 8);
+
+  mountainCtx.restore();
+}
+
+function drawSinkingMountainCrawler(px, py, angle, depth) {
+  mountainCtx.save();
+  mountainCtx.beginPath();
+  mountainCtx.rect(px - 70, py - 120 + depth, 140, 170 - depth);
+  mountainCtx.clip();
+  drawMountainCrawler(px, py + depth, angle);
+  mountainCtx.restore();
+}
+
+function drawGlowcoreSpikes(targetCtx, baseX, baseY, tick = 0, scale = 1) {
+  const stalks = [
+    { dx: -18, h: 22, w: 7 },
+    { dx: -8, h: 34, w: 8 },
+    { dx: 2, h: 28, w: 7 },
+    { dx: 12, h: 40, w: 9 },
+    { dx: 23, h: 24, w: 7 },
+  ];
+  for (let i = 0; i < stalks.length; i += 1) {
+    const stalk = stalks[i];
+    const sway = ((tick + i) % 18 < 9 ? 1 : 0);
+    const height = (stalk.h + sway * 3) * scale;
+    const width = stalk.w * scale;
+    const x = Math.round(baseX + (stalk.dx * scale));
+    const y = Math.round(baseY);
+    targetCtx.fillStyle = '#1d7d42';
+    targetCtx.fillRect(x, y - height, width, height);
+    targetCtx.fillStyle = '#7dff8d';
+    targetCtx.fillRect(
+      x + Math.max(1, Math.floor(width * 0.25)),
+      y - height + 2,
+      Math.max(2, Math.floor(width * 0.45)),
+      Math.max(3, Math.floor(height * 0.22))
+    );
+    targetCtx.fillStyle = '#b1ffbb';
+    targetCtx.fillRect(x, y - height - Math.max(1, Math.floor(scale)), width, Math.max(2, Math.floor(scale + 1)));
+  }
+}
+
+function drawMountainSinkPatch(targetCtx, sink, camX, tick) {
+  const left = Math.round(sink.x - (sink.width * 0.5) - camX);
+  const top = Math.round(sink.y - 8);
+  const width = Math.round(sink.width);
+  targetCtx.fillStyle = '#08090b';
+  targetCtx.fillRect(left, top, width, 16);
+  targetCtx.fillStyle = '#14161a';
+  targetCtx.fillRect(left + 6, top + 2, Math.max(10, width - 12), 10);
+  targetCtx.fillStyle = '#1d2025';
+  targetCtx.fillRect(left + 14, top + 4, Math.max(6, width - 28), 6);
+
+  const bubbleOffsets = [0.12, 0.38, 0.63, 0.84];
+  for (let i = 0; i < bubbleOffsets.length; i += 1) {
+    const pulse = (tick + i * 6) % 24;
+    const rise = pulse < 12 ? pulse : 24 - pulse;
+    const bubbleX = Math.round(left + (width * bubbleOffsets[i]));
+    const bubbleY = Math.round(top + 10 - Math.floor(rise * 0.35));
+    const bubbleSize = i % 2 === 0 ? 4 : 5;
+    targetCtx.fillStyle = rise > 8 ? '#32353b' : '#202329';
+    targetCtx.fillRect(bubbleX, bubbleY, bubbleSize, bubbleSize);
+  }
+}
+
+function drawMountainCreature(creature, camX) {
+  const drawX = creature.x - camX;
+  const drawY = creature.y - 10;
+  if (creature.type === 'nib') {
+    mountainCtx.fillStyle = '#101114';
+    mountainCtx.fillRect(drawX - 18, drawY - 10, 36, 16);
+    mountainCtx.fillStyle = '#1d1f24';
+    mountainCtx.fillRect(drawX - 10, drawY - 16, 20, 8);
+    mountainCtx.fillStyle = '#ff3a3a';
+    mountainCtx.fillRect(drawX - 7, drawY - 8, 4, 4);
+    mountainCtx.fillRect(drawX + 3, drawY - 8, 4, 4);
+    return;
+  }
+
+  mountainCtx.fillStyle = '#1b1a20';
+  mountainCtx.beginPath();
+  mountainCtx.arc(drawX, drawY, 24, 0, Math.PI * 2);
+  mountainCtx.fill();
+  mountainCtx.fillStyle = '#2b2030';
+  mountainCtx.beginPath();
+  mountainCtx.arc(drawX, drawY, 16, 0, Math.PI * 2);
+  mountainCtx.fill();
+  mountainCtx.fillStyle = '#6b1830';
+  mountainCtx.beginPath();
+  mountainCtx.arc(drawX + 5, drawY - 2, 6, 0, Math.PI * 2);
+  mountainCtx.fill();
+  const legOffsets = [-18, -11, -4, 4, 11, 18];
+  for (const ox of legOffsets) {
+    mountainCtx.fillStyle = '#2a2430';
+    mountainCtx.fillRect(drawX + ox, drawY + 13, 3, 5);
+    mountainCtx.fillStyle = '#121218';
+    mountainCtx.fillRect(drawX + ox - 1, drawY + 18, 5, 10);
+  }
+}
+
+function drawMountainFlySwarm(data, camX) {
+  if (!data.flySwarm || !data.flySwarm.triggered) {
+    return;
+  }
+  for (let i = 0; i < data.flySwarm.flies.length; i += 1) {
+    const fly = data.flySwarm.flies[i];
+    if (!fly.active) {
+      continue;
+    }
+    const bubble = data.flySwarm.phase === 'alert' && i === 0 ? '!' : '';
+    drawFlySprite(mountainCtx, fly.x - camX, fly.y, {
+      scale: 0.6,
+      angry: data.flySwarm.phase !== 'alert' || i > 0,
+      bubble,
+    });
+  }
+}
+
+function drawMountainPass() {
+  if (!state.mountainData) {
+    return;
+  }
+  const data = state.mountainData;
+  const w = mountainCanvas.width;
+  const h = mountainCanvas.height;
+  const centerX = Math.floor(w * 0.38);
+  const camX = data.cameraX;
+
+  const sky = mountainCtx.createLinearGradient(0, 0, 0, h);
+  sky.addColorStop(0, '#111829');
+  sky.addColorStop(0.5, '#1f2433');
+  sky.addColorStop(1, '#090a0d');
+  mountainCtx.fillStyle = sky;
+  mountainCtx.fillRect(0, 0, w, h);
+
+  mountainCtx.fillStyle = '#0f1015';
+  for (let i = 0; i < 8; i += 1) {
+    const ridgeX = ((i * 220) - (camX * 0.18)) % (w + 260);
+    mountainCtx.beginPath();
+    mountainCtx.moveTo(ridgeX - 180, h);
+    mountainCtx.lineTo(ridgeX - 40, 360 + ((i % 3) * 20));
+    mountainCtx.lineTo(ridgeX + 160, h);
+    mountainCtx.closePath();
+    mountainCtx.fill();
+  }
+
+  for (const platform of data.platforms) {
+    const left = platform.x - camX;
+    const right = left + platform.width;
+    if (right < -40 || left > w + 40) {
+      continue;
+    }
+    mountainCtx.fillStyle = 'rgba(114, 228, 255, 0.2)';
+    mountainCtx.fillRect(left, platform.y - 12, platform.width, 24);
+    mountainCtx.fillStyle = '#64d7ff';
+    mountainCtx.fillRect(left, platform.y - 5, platform.width, 10);
+    mountainCtx.fillStyle = '#c7f5ff';
+    mountainCtx.fillRect(left + 10, platform.y - 8, platform.width - 20, 4);
+    mountainCtx.fillStyle = 'rgba(159, 247, 255, 0.25)';
+    mountainCtx.fillRect(left + 18, platform.y + 6, platform.width - 36, 6);
+  }
+
+  for (const spike of data.spikes) {
+    const drawX = spike.x - camX;
+    if (drawX < -60 || drawX > w + 60) {
+      continue;
+    }
+    drawGlowcoreSpikes(mountainCtx, drawX, spike.y, data.animTick, 0.9);
+  }
+
+  mountainCtx.beginPath();
+  mountainCtx.moveTo(0, h);
+  for (let sx = 0; sx <= w; sx += 8) {
+    const worldX = camX + sx;
+    const terrainY = sampleRawMountainHeight(data.nodes, worldX);
+    mountainCtx.lineTo(sx, terrainY);
+  }
+  mountainCtx.lineTo(w, h);
+  mountainCtx.closePath();
+  mountainCtx.fillStyle = '#131313';
+  mountainCtx.fill();
+
+  mountainCtx.beginPath();
+  for (let sx = 0; sx <= w; sx += 8) {
+    const worldX = camX + sx;
+    const terrainY = sampleRawMountainHeight(data.nodes, worldX);
+    if (sx === 0) {
+      mountainCtx.moveTo(sx, terrainY);
+    } else {
+      mountainCtx.lineTo(sx, terrainY);
+    }
+  }
+  mountainCtx.strokeStyle = '#5e6068';
+  mountainCtx.lineWidth = 4;
+  mountainCtx.stroke();
+
+  for (const sink of data.sinkPatches) {
+    const drawX = sink.x - camX;
+    if (drawX + sink.width < -80 || drawX - sink.width > w + 80) {
+      continue;
+    }
+    drawMountainSinkPatch(mountainCtx, sink, camX, data.animTick);
+  }
+
+  for (const creature of data.creatures) {
+    const drawX = creature.x - camX;
+    if (drawX < -80 || drawX > w + 80) {
+      continue;
+    }
+    drawMountainCreature(creature, camX);
+  }
+
+  drawMountainFlySwarm(data, camX);
+
+  const px = data.player.x - camX;
+  if (data.sinking) {
+    drawSinkingMountainCrawler(px, data.player.y, data.player.angle, data.sinking.depth);
+  } else {
+    drawMountainCrawler(px, data.player.y, data.player.angle);
+  }
+
+  mountainCtx.fillStyle = '#d7e8ff';
+  mountainCtx.font = 'bold 18px Verdana';
+  mountainCtx.fillText(`HP: ${Math.max(0, state.hp)}/${state.maxHp}`, 18, 28);
+  mountainCtx.fillText(`Food: ${state.food}`, 18, 52);
+  mountainCtx.fillText(`Pass: ${Math.min(100, Math.floor((data.player.x / data.courseLength) * 100))}%`, w - 150, 28);
+  mountainCtx.fillText('Drive: A/D or Arrows | Jump: W, Up, or Space', 18, h - 24);
+
+  if (data.crashFlash > 0) {
+    mountainCtx.fillStyle = `rgba(255, 110, 70, ${Math.min(0.4, data.crashFlash / 12)})`;
+    mountainCtx.fillRect(0, 0, w, h);
+  }
+}
+
+function crashMountainPass() {
+  if (!state.mountainData) {
+    return;
+  }
+  state.hp = Math.max(0, state.hp - 25);
+  state.lastDamageSource = 'mountain';
+  playExplosionBlastSound();
+  addLog('The crawler body slammed into the mountain. -25 HP. The pass resets.', 'bad');
+  state.mountainData.crashFlash = 12;
+  syncHud();
+  if (state.hp <= 0) {
+    closeMountainPass(true);
+    triggerEventAnimation('explode', 58);
+    endGame('The crawler erupts into wreckage.', 'explode');
+    return;
+  }
+  state.mountainRunning = false;
+  state.mountainData = buildMountainPassData();
+  state.mountainKeys.left = false;
+  state.mountainKeys.right = false;
+  state.mountainKeys.jump = false;
+  const startY = sampleMountainHeight(state.mountainData, state.mountainData.player.x);
+  state.mountainData.player.y = startY - 12;
+  state.mountainData.player.jumpsUsed = 0;
+  drawMountainPass();
+  if (state.mountainResetTimer) {
+    window.clearTimeout(state.mountainResetTimer);
+  }
+  state.mountainResetTimer = window.setTimeout(() => {
+    if (!state.mountainOpen || state.gameOver) {
+      return;
+    }
+    state.mountainResetTimer = 0;
+    state.mountainRunning = true;
+    updateMountainPass();
+  }, 950);
+}
+
+function hitMountainSpikes() {
+  if (!state.mountainData) {
+    return;
+  }
+  const data = state.mountainData;
+  const player = data.player;
+  state.hp = Math.max(0, state.hp - 10);
+  state.lastDamageSource = 'coral';
+  playCoralScrapeSound();
+  addLog('Glowcore spikes rake the crawler. -10 HP.', 'bad');
+  data.crashFlash = 8;
+  syncHud();
+  if (state.hp <= 0) {
+    closeMountainPass(true);
+    triggerEventAnimation('explode', 58);
+    endGame('The crawler erupts into wreckage.', 'explode');
+    return;
+  }
+  player.x = Math.max(40, player.x - 34);
+  player.vx = Math.min(player.vx, -1.8);
+  player.vy = Math.min(player.vy, -3.5);
+  player.grounded = false;
+  player.angle *= 0.6;
+  player.jumpsUsed = Math.max(player.jumpsUsed, 1);
+}
+
+function hitMountainSink(sink) {
+  if (!state.mountainData) {
+    return;
+  }
+  const data = state.mountainData;
+  const player = data.player;
+  if (data.sinking) {
+    return;
+  }
+  state.lastDamageSource = 'sink';
+  playSinkSound();
+  addLog('Bubbling black sand starts swallowing the crawler.', 'bad');
+  data.crashFlash = 7;
+  data.sinking = {
+    x: sink.x,
+    y: sink.y,
+    width: sink.width,
+    depth: 0,
+  };
+  player.x = sink.x;
+  player.y = sink.y - 12;
+  player.vx = 0;
+  player.vy = 0;
+  player.grounded = false;
+  player.angle = 0;
+}
+
+function hitMountainCreature(creature) {
+  if (!state.mountainData) {
+    return;
+  }
+  const data = state.mountainData;
+  const player = data.player;
+  if (creature.type === 'nib') {
+    state.food = Math.max(0, state.food - 5);
+    state.lastDamageSource = 'nibblorax';
+    playNibbloraxMunchSound();
+    addLog('Nibblorax tears away 5 food.', 'bad');
+  } else {
+    state.hp = Math.max(0, state.hp - 15);
+    state.lastDamageSource = 'morspulex';
+    playMorspulexGrowlSound();
+    addLog('Morspulex slams the crawler. -15 HP.', 'bad');
+  }
+  data.crashFlash = 7;
+  syncHud();
+  if (state.food <= 0) {
+    closeMountainPass(true);
+    endGame('Out of food. The crawler rolls to a stop.', 'starve');
+    return;
+  }
+  if (state.hp <= 0) {
+    closeMountainPass(true);
+    triggerEventAnimation('explode', 58);
+    endGame('The crawler erupts into wreckage.', 'explode');
+    return;
+  }
+  player.x = Math.max(40, player.x - 28);
+  player.vx = Math.min(player.vx, -1.6);
+  player.vy = Math.min(player.vy, -2.5);
+  player.grounded = false;
+  player.angle *= 0.7;
+}
+
+function updateMountainCreatures(data) {
+  for (const creature of data.creatures) {
+    if (creature.cooldown > 0) {
+      creature.cooldown -= 1;
+    }
+    const dir = creature.vx >= 0 ? 1 : -1;
+    const support = findMountainSupport(data, creature.x);
+    creature.supportType = support.type;
+    creature.supportRef = support.ref;
+    creature.y = support.y;
+    const nextX = creature.x + creature.vx;
+    const nextSupport = findMountainSupport(data, nextX);
+    const aheadX = creature.x + (dir * (creature.type === 'nib' ? 34 : 42));
+    const aheadSupport = findMountainSupport(data, aheadX);
+    const cliffAhead = nextSupport.type !== support.type || Math.abs(aheadSupport.y - support.y) > 26;
+    const platformEdge = support.type === 'platform' && (
+      aheadX <= support.ref.x + 10 || aheadX >= support.ref.x + support.ref.width - 10
+    );
+    const spikeAhead = data.spikes.some((spike) => (
+      Math.abs(spike.x - aheadX) < 34 && Math.abs(spike.y - support.y) < 42
+    ));
+    if (cliffAhead || platformEdge || spikeAhead) {
+      creature.vx = -creature.vx;
+      continue;
+    }
+    creature.x = Math.max(50, Math.min(data.courseLength - 40, nextX));
+    creature.y = nextSupport.y;
+  }
+}
+
+function updateMountainFlySwarm(data, player) {
+  if (!data.flySwarm || !data.flySwarm.triggered) {
+    return false;
+  }
+  const swarm = data.flySwarm;
+  if (swarm.phase === 'alert') {
+    swarm.timer -= 1;
+    const lead = swarm.flies[0];
+    if (lead) {
+      lead.x = swarm.anchorX;
+      lead.y = swarm.anchorY + Math.sin(data.animTick * 0.25) * 4;
+    }
+    if (swarm.timer <= 0) {
+      swarm.phase = 'attack';
+      playFlyBuzzSound(true);
+      const extraCount = swarm.flies.length - 1;
+      for (let i = 0; i < swarm.flies.length; i += 1) {
+        const fly = swarm.flies[i];
+        fly.active = true;
+        fly.cooldown = 0;
+        if (i === 0) {
+          fly.x = swarm.anchorX;
+          fly.y = swarm.anchorY;
+          continue;
+        }
+        const angle = (Math.PI * 2 * (i - 1)) / extraCount;
+        const ring = 92 + ((i % 8) * 20) + randInt(-10, 10);
+        fly.x = swarm.anchorX + Math.cos(angle) * ring;
+        fly.y = swarm.anchorY + Math.sin(angle) * Math.max(42, ring * 0.58);
+        fly.vx = 0;
+        fly.vy = 0;
+      }
+    }
+    return true;
+  }
+
+  let activeCount = 0;
+  for (const fly of swarm.flies) {
+    if (!fly.active) {
+      continue;
+    }
+    activeCount += 1;
+    if (fly.cooldown > 0) {
+      fly.cooldown -= 1;
+    }
+    const dx = player.x - fly.x;
+    const dy = (player.y - 26) - fly.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    fly.vx = (fly.vx * 0.78) + ((dx / dist) * 2.5 * 0.22);
+    fly.vy = (fly.vy * 0.78) + ((dy / dist) * 2.5 * 0.22);
+    fly.x += fly.vx;
+    fly.y += fly.vy;
+    if (Math.abs(fly.x - player.x) < 26 && Math.abs(fly.y - (player.y - 24)) < 28 && fly.cooldown <= 0) {
+      fly.active = false;
+      state.hp = Math.max(0, state.hp - 5);
+      state.lastDamageSource = 'musca';
+      playFlyHitSound();
+      data.crashFlash = 6;
+      fly.cooldown = 14;
+      syncHud();
+      if (state.hp <= 0) {
+        closeMountainPass(true);
+        triggerEventAnimation('explode', 58);
+        endGame('The Musca swarm stripped the crawler apart.', 'explode');
+        return true;
+      }
+    }
+  }
+  if (activeCount === 0) {
+    swarm.phase = 'done';
+    return false;
+  }
+  return true;
+}
+
+function updateMountainPass() {
+  if (!state.mountainOpen || !state.mountainRunning || !state.mountainData) {
+    return;
+  }
+  const data = state.mountainData;
+  const player = data.player;
+  const w = mountainCanvas.width;
+  const centerX = Math.floor(w * 0.38);
+
+  if (data.sinking) {
+    data.animTick += 1;
+    data.crashFlash = Math.max(0, data.crashFlash - 1);
+    player.x = data.sinking.x;
+    player.y = data.sinking.y - 12;
+    player.vx = 0;
+    player.vy = 0;
+    player.angle *= 0.85;
+    data.sinking.depth = Math.min(128, data.sinking.depth + 1.1);
+    data.cameraX = Math.max(0, player.x - centerX);
+    data.cameraX = Math.min(data.cameraX, Math.max(0, data.courseLength - w + 100));
+    drawMountainPass();
+    if (data.sinking.depth >= 118) {
+      closeMountainPass(true);
+      endGame('The crawler vanishes beneath the black sand.', 'stopped');
+      return;
+    }
+    state.mountainAnimId = window.requestAnimationFrame(updateMountainPass);
+    return;
+  }
+
+  if (data.flySwarm && !data.flySwarm.triggered && player.x >= data.flySwarm.anchorX - 180) {
+    data.flySwarm.triggered = true;
+    data.flySwarm.phase = 'alert';
+    data.flySwarm.timer = 44;
+    data.flySwarm.flies[0].x = data.flySwarm.anchorX;
+    data.flySwarm.flies[0].y = data.flySwarm.anchorY;
+    playFlyBuzzSound(false);
+  }
+
+  updateMountainCreatures(data);
+
+  if (state.mountainKeys.left) {
+    player.vx -= 0.28;
+  }
+  if (state.mountainKeys.right) {
+    player.vx += 0.28;
+  }
+  player.vx *= player.grounded ? 0.94 : 0.99;
+  player.vx = Math.max(-4.2, Math.min(6, player.vx));
+  player.vy += 0.58;
+  player.vy = Math.min(player.vy, 12);
+
+  if (state.mountainKeys.jump && !player.jumpLatch) {
+    if (player.grounded) {
+      player.vy = -12.8;
+      player.grounded = false;
+      player.jumpLatch = true;
+      player.jumpsUsed = 1;
+    } else if (player.jumpsUsed < 2) {
+      player.vy = -9.2;
+      player.jumpLatch = true;
+      player.jumpsUsed = 2;
+      player.angle *= 0.5;
+    }
+  }
+  if (!state.mountainKeys.jump) {
+    player.jumpLatch = false;
+  }
+
+  player.x = Math.max(40, Math.min(data.courseLength, player.x + player.vx));
+  const previousBottomY = player.y + 12;
+  player.y += player.vy;
+
+  const rawTerrainCenter = sampleRawMountainHeight(data.nodes, player.x);
+  const rawTerrainLeft = sampleRawMountainHeight(data.nodes, player.x - 32);
+  const rawTerrainRight = sampleRawMountainHeight(data.nodes, player.x + 32);
+  let terrainCenter = rawTerrainCenter;
+  let terrainLeft = rawTerrainLeft;
+  let terrainRight = rawTerrainRight;
+  if (player.vy >= 0) {
+    for (const platform of data.platforms) {
+      const platformTop = platform.y;
+      const canLandOnPlatform = previousBottomY <= platformTop + 6;
+      if (!canLandOnPlatform) {
+        continue;
+      }
+      if (player.x >= platform.x && player.x <= platform.x + platform.width) {
+        terrainCenter = Math.min(terrainCenter, platformTop);
+      }
+      if (player.x - 32 >= platform.x && player.x - 32 <= platform.x + platform.width) {
+        terrainLeft = Math.min(terrainLeft, platformTop);
+      }
+      if (player.x + 32 >= platform.x && player.x + 32 <= platform.x + platform.width) {
+        terrainRight = Math.min(terrainRight, platformTop);
+      }
+    }
+  }
+  const groundAngle = Math.atan2(terrainRight - terrainLeft, 64);
+  const treadHalfH = 12;
+  // Match the visible grey tower body: fillRect(-15, -92, 30, 78).
+  const greyBodyBottomY = player.y - 14;
+  const greyBodyTerrainLeft = sampleRawMountainHeight(data.nodes, player.x - 15);
+  const greyBodyTerrainCenter = sampleRawMountainHeight(data.nodes, player.x);
+  const greyBodyTerrainRight = sampleRawMountainHeight(data.nodes, player.x + 15);
+
+  if (player.y + treadHalfH >= terrainCenter && player.vy >= 0) {
+    player.grounded = true;
+    player.y = terrainCenter - treadHalfH;
+    player.vy = 0;
+    player.angle = (player.angle * 0.4) + (groundAngle * 0.6);
+    player.jumpsUsed = 0;
+  } else {
+    player.grounded = false;
+    // Airborne behavior is more like a stabilizing jump jet than a tumbling leap.
+    player.angle += player.vx * 0.002;
+    player.angle *= 0.94;
+  }
+
+  if (
+    greyBodyTerrainLeft <= greyBodyBottomY
+    || greyBodyTerrainCenter <= greyBodyBottomY
+    || greyBodyTerrainRight <= greyBodyBottomY
+  ) {
+    crashMountainPass();
+    return;
+  }
+
+  data.cameraX = Math.max(0, player.x - centerX);
+  data.cameraX = Math.min(data.cameraX, Math.max(0, data.courseLength - w + 100));
+  data.crashFlash = Math.max(0, data.crashFlash - 1);
+  data.animTick += 1;
+
+  const crawlerBottom = player.y + 12;
+  for (const sink of data.sinkPatches) {
+    const withinSinkX = player.x + 24 >= sink.x - (sink.width * 0.5) && player.x - 24 <= sink.x + (sink.width * 0.5);
+    const touchingSink = crawlerBottom >= sink.y - 6;
+    const canBeHit = !sink.cooldown || sink.cooldown <= 0;
+    if (withinSinkX && touchingSink && canBeHit) {
+      sink.cooldown = 28;
+      hitMountainSink(sink);
+      break;
+    }
+    if (sink.cooldown && sink.cooldown > 0) {
+      sink.cooldown -= 1;
+    }
+  }
+
+  if (data.sinking) {
+    drawMountainPass();
+    state.mountainAnimId = window.requestAnimationFrame(updateMountainPass);
+    return;
+  }
+
+  for (const creature of data.creatures) {
+    const distanceX = Math.abs(creature.x - player.x);
+    const distanceY = Math.abs((creature.y - 10) - player.y);
+    const canHit = !creature.cooldown || creature.cooldown <= 0;
+    if (distanceX <= creature.radius + 28 && distanceY <= creature.radius + 34 && canHit) {
+      creature.cooldown = 26;
+      hitMountainCreature(creature);
+      if (state.gameOver || data.sinking) {
+        return;
+      }
+    }
+  }
+
+  if (data.flySwarm && data.flySwarm.triggered && data.flySwarm.phase !== 'done') {
+    const stillActive = updateMountainFlySwarm(data, player);
+    if (!stillActive) {
+      data.flySwarm.phase = 'done';
+    }
+    if (state.gameOver) {
+      return;
+    }
+  }
+
+  for (const spike of data.spikes) {
+    const withinSpikeX = player.x + 28 >= spike.x - (spike.width * 0.5) && player.x - 28 <= spike.x + (spike.width * 0.5);
+    const touchingSpike = crawlerBottom >= spike.y - 26;
+    const canBeHit = !spike.cooldown || spike.cooldown <= 0;
+    if (withinSpikeX && touchingSpike && canBeHit) {
+      spike.cooldown = 18;
+      hitMountainSpikes();
+    }
+    if (spike.cooldown && spike.cooldown > 0) {
+      spike.cooldown -= 1;
+    }
+  }
+
+  drawMountainPass();
+
+  if (player.x >= data.courseLength - 90) {
+    closeMountainPass(true);
+    if (state.practiceMode) {
+      finishPracticeSimulation('Mountain practice complete. The crawler reached open ground.', 'good');
+      return;
+    }
+    addLog('The crawler claws across the mountain pass and reaches open ground.', 'good');
+    syncHud();
+    syncInventoryUi();
+    draw();
+    return;
+  }
+
+  state.mountainAnimId = window.requestAnimationFrame(updateMountainPass);
+}
+
+function closeMountainPass(restoreTurnButton = true) {
+  if (state.mountainResetTimer) {
+    window.clearTimeout(state.mountainResetTimer);
+    state.mountainResetTimer = 0;
+  }
+  if (state.mountainAnimId) {
+    window.cancelAnimationFrame(state.mountainAnimId);
+    state.mountainAnimId = 0;
+  }
+  state.mountainOpen = false;
+  state.mountainRunning = false;
+  state.mountainData = null;
+  state.mountainKeys.left = false;
+  state.mountainKeys.right = false;
+  state.mountainKeys.jump = false;
+  mountainPanel.classList.add('hidden');
+  mountainIntro.classList.remove('hidden');
+  syncMountainDebugUi();
+  if (restoreTurnButton && state.running && !state.gameOver && !state.traderOpen && !state.tabletOpen && !state.encounterOpen) {
+    nextTurnBtn.disabled = false;
+  }
 }
 
 function loadStoredTablets() {
@@ -5739,7 +7538,7 @@ function syncInventoryUi() {
   pickaxeStatus.textContent = state.pickaxeArmed ? 'Armed' : 'Inactive';
   windmillStatus.textContent = state.windmillArmed ? 'Armed' : 'Inactive';
 
-  const inactive = !state.running || state.gameOver || state.traderOpen || state.tabletOpen;
+  const inactive = !state.running || state.gameOver || state.traderOpen || state.tabletOpen || state.encounterOpen || state.mountainOpen;
   repairBtn.disabled = inactive || state.inventory.repairKits <= 0 || state.hp >= state.maxHp;
   sprayBtn.disabled = inactive || state.inventory.antiNibSpray <= 0 || state.sprayArmed;
   sonarBtn.disabled = inactive || state.inventory.sonarDisrupter <= 0 || state.sonarArmed || state.cooldowns.sonar > 0;
@@ -5786,11 +7585,72 @@ function addLog(text, tone = '') {
 
 function addPlayerLogNote() {
   const note = logNoteInput.value.trim();
-  if (!note || !state.running || state.gameOver) {
+  if (!note) {
+    return;
+  }
+  const normalized = note.replace(/\s+/g, ' ').trim().toLowerCase();
+  const directHerdTrigger = normalized === 'activate event:herd' || normalized === 'activate herd';
+  const compactRaw = normalized.replace(/\s+/g, '');
+  const compactAlpha = normalized.replace(/[^a-z0-9]/g, '');
+  const unlockLineMatched = (
+    normalized.includes('hey fly')
+    && normalized.includes('could u give me debug command')
+  );
+  const unlockLegacyMatched = (
+    compactRaw === "u:heyfly,fly:'sup?u"
+    || compactRaw === 'u:heyfly,fly:’sup?u'
+    || compactAlpha === 'uheyflyflysupu'
+  );
+  const typedDebugCommand = (
+    normalized.startsWith('debug')
+    || normalized === 'immortality'
+    || normalized.startsWith('activate event:')
+    || normalized.startsWith('activate ')
+  );
+  if (unlockLineMatched || unlockLegacyMatched) {
+    addLog('U: Hey Fly, could u give me debug commands?', 'player');
+    addLog("FLY: sure, why not?", 'good');
+    state.debugCommandsEnabled = true;
+    syncMountainDebugUi();
+    addLog('Debug commands enabled. Type: debug help', 'good');
+    logNoteInput.value = '';
+    return;
+  }
+  if (directHerdTrigger) {
+    const opened = openEncounter(true);
+    if (opened) {
+      addLog('Debug: activated event "herd".', 'good');
+    } else if (state.encounterOpen) {
+      addLog('Debug: herd already active.', 'bad');
+    } else if (state.gameOver) {
+      addLog('Debug: herd cannot start after mission end.', 'bad');
+    } else {
+      addLog('Debug: herd could not start right now.', 'bad');
+    }
+    logNoteInput.value = '';
+    return;
+  }
+  if (typedDebugCommand && !state.debugCommandsEnabled) {
+    state.debugCommandsEnabled = true;
+    syncMountainDebugUi();
+    addLog('Debug commands enabled. Type: debug help', 'good');
+  }
+  try {
+    if (handleDebugCommand(normalized)) {
+      logNoteInput.value = '';
+      return;
+    }
+  } catch (error) {
+    addLog(`Debug command error: ${error && error.message ? error.message : 'unknown failure'}`, 'bad');
+    logNoteInput.value = '';
+    return;
+  }
+  if (!state.running || state.gameOver) {
+    addLog('Start a run to write mission notes.', 'bad');
+    logNoteInput.value = '';
     return;
   }
   addLog(`NOTE: ${note}`, 'player');
-  const normalized = note.replace(/\s+/g, ' ').trim().toLowerCase();
   if (
     normalized === 'hi worm, you look nice today.'
     && !state.sonarBlockedWormEver
@@ -5825,6 +7685,121 @@ function addPlayerLogNote() {
     }
   }
   logNoteInput.value = '';
+}
+
+function handleDebugCommand(normalizedNote) {
+  const directImmortality = normalizedNote === 'immortality';
+  const activateMatch = normalizedNote.match(/^activate(?:\s+event)?\s*:?\s*(.+)$/);
+  if (!normalizedNote.startsWith('debug') && !directImmortality && !activateMatch) {
+    return false;
+  }
+  if (directImmortality) {
+    state.debugImmortality = !state.debugImmortality;
+    addLog(`Debug: immortality ${state.debugImmortality ? 'ON' : 'OFF'}.`, 'good');
+    return true;
+  }
+  if (activateMatch) {
+    const requested = (activateMatch[1] || '').trim();
+    if (!requested) {
+      addLog('Debug: use ACTIVATE EVENT:<name> or ACTIVATE <name>', 'bad');
+      return true;
+    }
+    const keyMap = {
+      weather: 'weather',
+      'bad weather': 'weather',
+      sink: 'sink',
+      'sinking sand': 'sink',
+      coral: 'coral',
+      'glowing green coral': 'coral',
+      worm: 'worm',
+      nib: 'nib',
+      nibblorax: 'nib',
+      wreckage: 'wreckage',
+      orchard: 'orchard',
+      'glowcore orchard': 'orchard',
+      plutonium: 'plutonium',
+      'plutonium deposit': 'plutonium',
+      trader: 'natives',
+      natives: 'natives',
+      tablet: 'tablet',
+      'mystic tablet': 'tabletMystic',
+      fly: 'fly',
+      herd: 'herd',
+      mountain: 'mountain',
+      'mountain pass': 'mountain',
+    };
+    const normalizedRequested = requested.replace(/\s+/g, ' ').trim();
+    const targetKey = keyMap[normalizedRequested];
+    if (!targetKey) {
+      addLog(`Debug: unknown event "${requested}".`, 'bad');
+      return true;
+    }
+    const event = eventTable.find((item) => item.key === targetKey);
+    if (!event) {
+      addLog(`Debug: event "${targetKey}" not available.`, 'bad');
+      return true;
+    }
+    if (targetKey === 'herd') {
+      const opened = openEncounter(true);
+      if (!opened) {
+        addLog('Debug: herd could not start right now.', 'bad');
+        return true;
+      }
+    } else {
+      applyEvent(event);
+    }
+    syncHud();
+    syncInventoryUi();
+    draw();
+    addLog(`Debug: activated event "${targetKey}".`, 'good');
+    return true;
+  }
+  const parts = normalizedNote.split(/\s+/).filter(Boolean);
+  const cmd = parts[1] || 'help';
+  if (cmd === 'help') {
+    addLog('Debug: herd | mountain | hp <0-999> | food <0-999999> | win | IMMORTALITY | ACTIVATE EVENT:<name>', 'good');
+    return true;
+  }
+  if (cmd === 'herd') {
+    if (state.encounterOpen) {
+      addLog('Debug: herd already active.', 'bad');
+      return true;
+    }
+    openEncounter();
+    addLog('Debug: forced herd encounter.', 'good');
+    return true;
+  }
+  if (cmd === 'hp') {
+    const value = Number.parseInt(parts[2], 10);
+    if (!Number.isFinite(value)) {
+      addLog('Debug: hp requires a number.', 'bad');
+      return true;
+    }
+    state.hp = Math.max(0, Math.min(999, value));
+    syncHud();
+    draw();
+    addLog(`Debug: HP set to ${state.hp}.`, 'good');
+    return true;
+  }
+  if (cmd === 'food') {
+    const value = Number.parseInt(parts[2], 10);
+    if (!Number.isFinite(value)) {
+      addLog('Debug: food requires a number.', 'bad');
+      return true;
+    }
+    state.food = Math.max(0, Math.min(999999, value));
+    syncHud();
+    addLog(`Debug: Food set to ${state.food}.`, 'good');
+    return true;
+  }
+  if (cmd === 'win') {
+    state.position = state.trackLength;
+    syncHud();
+    endGame('Mission success. The crawler reached the colony site.', 'win');
+    return true;
+  }
+  addLog('Debug: unknown command. Type: debug help', 'bad');
+  return true;
 }
 
 function pickEvent() {
@@ -6037,16 +8012,7 @@ function drawEventAnimation() {
 
   if (type === 'coral') {
     const { x, y } = getCrawlerPosition();
-    for (let i = 0; i < 6; i += 1) {
-      const sx = x - 30 + i * 10;
-      const h = 12 + ((i + state.eventAnim.tick) % 3) * 4;
-      ctx.fillStyle = '#1d7d42';
-      ctx.fillRect(sx, y + 22 - h, 4, h);
-      ctx.fillStyle = '#7dff8d';
-      ctx.fillRect(sx + 1, y + 20 - h, 2, 3);
-      ctx.fillStyle = '#b1ffbb';
-      ctx.fillRect(sx, y + 18 - h, 4, 1);
-    }
+    drawGlowcoreSpikes(ctx, x, y + 22, state.eventAnim.tick, 0.6);
     return;
   }
 
@@ -6878,6 +8844,10 @@ function drawStatusStrip() {
 
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function randFloat(min, max) {
+  return (Math.random() * (max - min)) + min;
 }
 
 function triggerEventAnimation(type, frames, data = null) {
