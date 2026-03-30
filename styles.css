@@ -159,6 +159,16 @@ body {
   font-size: 0.92rem;
 }
 
+.creditsList {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #d6d0bf;
+}
+
+.creditsList li + li {
+  margin-top: 4px;
+}
+
 .setupLoadoutGrid {
   margin-bottom: 8px;
 }
